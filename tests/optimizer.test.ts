@@ -230,4 +230,19 @@ describe("Route optimizer proof of concept", () => {
     const result = replan(active, world, "2026-09-07T07:00:00.000Z", { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" });
     expect(result.missions[0]?.legs.filter((leg) => leg.type === "TAXI")).toHaveLength(2);
   });
+
+  it("X – does not revive a missed transit connection", () => {
+    const world = createBaseWorld();
+    world.driver.currentTransportMode = "PUBLIC_TRANSPORT";
+    world.transitConnections = world.transitConnections.filter((connection) => connection.id !== "dus-col");
+    const pastConnection = world.transitConnections.find((connection) => connection.id === "dus-fra");
+    expect(pastConnection).toBeDefined();
+    world.transitConnections = [
+      { ...pastConnection!, id: "dus-col-past", destination: LOCATIONS.COLOGNE, departureTime: "2026-09-07T05:00:00.000Z", arrivalTime: "2026-09-07T05:30:00.000Z" },
+      { ...pastConnection!, id: "dus-col-later", destination: LOCATIONS.COLOGNE, departureTime: "2026-09-07T06:30:00.000Z", arrivalTime: "2026-09-07T07:05:00.000Z" },
+    ];
+    world.opportunities = [opportunity("timed-job", "DIRECT_ORDER", "Düsseldorf → Köln", "DUSSELDORF", "COLOGNE", 10000, "2026-09-07T06:00:00.000Z", "2026-09-07T08:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", 10, [cargo("Paket", "TINY", 1)])];
+    const mission = optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })[0];
+    expect(mission?.legs.find((leg) => leg.opportunityId === "timed-job")?.arrivalTime).toBe("2026-09-07T07:15:00.000Z");
+  });
 });

@@ -20,6 +20,14 @@ Kandidaten mit bestätigten Bookings erhalten beim partiellen Ranking einen star
 
 `ScoreBreakdown` enthält Umsatz, Reisekosten, Überschuss, Dauer, Umsatz pro Stunde, Leerstrecke, Risikopenalty und den finalen Score. `MAX_REVENUE` sortiert primär nach Umsatz und verwendet Überschuss, Umsatz/Stunde und Risiko als Tie-Breaker. Die anderen Modi verwenden eine direkt lesbare Formel; die BALANCED-Gewichte liegen zentral in `DEFAULT_CONFIG`.
 
+Die Rohwerte bleiben nachvollziehbar: Geld wird intern in Minor Units geführt, `revenuePerHour` ist Euro pro Stunde. Der Modus `MAX_REVENUE_PER_HOUR` verwendet dafür ausschließlich eine dokumentierte Skalierung im finalen Vergleichsscore; die angezeigte Kennzahl bleibt in Euro pro Stunde.
+
+Der aktuelle PoC berechnet `estimatedOtherCosts` und `softConstraintPenalty` noch nicht. Beide Felder bleiben deshalb explizit null, statt nicht vorhandene Kosten oder Soft-Regeln zu erfinden.
+
+## Fixture-Routing
+
+Transitverbindungen mit festen Abfahrts- oder Ankunftszeiten werden nur verwendet, wenn ihre Abfahrt noch erreichbar ist. Eine verpasste Verbindung wird nicht künstlich auf die angefragte Abfahrtszeit verschoben. Verbindungen ohne feste Zeiten bleiben deterministische Fixture-Verbindungen und starten zum angefragten Zeitpunkt.
+
 ## Local Search
 
 Die besten Beam-Kandidaten werden begrenzt mit Remove, Replace und Swap erneut abgespielt. Jede Variante durchläuft dieselben Feasibility-Regeln wie die Beam Search. Dadurch kann eine gute Reihenfolge lokal verbessert werden, ohne eine zweite, abweichende Regelimplementierung zu pflegen.
