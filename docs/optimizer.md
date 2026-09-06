@@ -4,11 +4,11 @@
 
 Hard Constraints werden vor dem Weiterführen eines Zustands geprüft: Opportunity-Status, Pickup- und Delivery-Zeitfenster, Fahrer-Verfügbarkeit, tatsächlicher Fahrzeugstandort, Fahrzeugverfügbarkeit, Cargo-Kapazität und bestätigte Bookings. Ein Ergebnis mit einem verletzten Hard Constraint wird nicht zurückgegeben.
 
-Risikoprofile konfigurieren den Transferpuffer und die Risikobewertung. Der Puffer wirkt in V1 als erklärbarer Risikofaktor; selbst `AGGRESSIVE` darf keine objektiv unmögliche Zeit akzeptieren. Komfort, bevorzugte Endzeit und zusätzliche Leerfahrt sind für die nächste Iteration als Soft-Penalties vorgesehen.
+Risikoprofile konfigurieren den Transferpuffer und die Risikobewertung. Der Puffer wird als harte Sicherheitsreserve vor Pickup- und Delivery-Deadlines berücksichtigt: `SAFE` reserviert 30 Minuten, `NORMAL` 15 Minuten und `AGGRESSIVE` 5 Minuten. Selbst `AGGRESSIVE` darf keine objektiv unmögliche Zeit akzeptieren. Komfort, bevorzugte Endzeit und zusätzliche Leerfahrt sind für die nächste Iteration als Soft-Penalties vorgesehen.
 
 ## Zustandsübergänge
 
-Ein `SearchState` ist ein Wertobjekt: aktuelle Location, aktuelle Zeit, Transportmodus, Fahrzeug, Opportunity-Sequenz, Legs und kumulierte Kennzahlen. Eine Fahrzeugüberführung endet am Ziel im Modus `WALKING`, weil das Kundenfahrzeug dort abgegeben wurde. Cargo wird für die gesamte Aktion gegen die aktuelle Kapazität geprüft. Der übergebene `WorldState` wird nie verändert.
+Ein `SearchState` ist ein Wertobjekt: aktuelle Location, aktuelle Zeit, Transportmodus, Fahrzeug, dessen aktuelle Search-State-Position, Opportunity-Sequenz, Legs und kumulierte Kennzahlen. Eigene Fahrzeuge bewegen sich bei `OWN_VEHICLE`-Legs mit dem Fahrer; der unveränderte `WorldState` bleibt nur die Ausgangsbasis. Eine Fahrzeugüberführung endet am Ziel im Modus `WALKING`, weil das Kundenfahrzeug dort abgegeben wurde. Cargo wird für die gesamte Aktion gegen die aktuelle Kapazität geprüft. Der übergebene `WorldState` wird nie verändert.
 
 ## Beam Search und Lookahead
 
@@ -26,7 +26,7 @@ Die besten Beam-Kandidaten werden begrenzt mit Remove, Replace und Swap erneut a
 
 ## Replanning
 
-`replan` übernimmt alle Legs, deren Ankunft vor `currentTime` liegt, unverändert. Die Restoptimierung startet am letzten bekannten Zielort mit dem aktualisierten WorldState. Liegt `currentTime` innerhalb eines Legs, wird das Replanning sicher blockiert, weil der exakte Zwischenstand nicht aus einer abgeschlossenen Mission ableitbar ist. Zukünftige bestätigte Bookings des betroffenen Fahrers bleiben Pflicht; nicht mehr erreichbare oder nicht mehr vorhandene Bookings werden als gefährdet erklärt. Der zurückgegebene Score wird über Vergangenheit und Zukunft aggregiert.
+`replan` übernimmt alle Legs, deren Ankunft vor `currentTime` liegt, unverändert. Die Restoptimierung startet am letzten bekannten Zielort mit dem aktualisierten WorldState und übernimmt den Transportmodus des letzten abgeschlossenen Legs, einschließlich Taxi, Rideshare und Eigenfahrzeug. Liegt `currentTime` innerhalb eines Legs, wird das Replanning sicher blockiert, weil der exakte Zwischenstand nicht aus einer abgeschlossenen Mission ableitbar ist. Zukünftige bestätigte Bookings des betroffenen Fahrers bleiben Pflicht; nicht mehr erreichbare oder nicht mehr vorhandene Bookings werden als gefährdet erklärt. Der zurückgegebene Score wird über Vergangenheit und Zukunft aggregiert.
 
 ## Warum V1 kein MILP/CP-SAT ist
 
