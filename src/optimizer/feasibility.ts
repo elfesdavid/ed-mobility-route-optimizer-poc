@@ -1,6 +1,6 @@
 import type { CargoItem, Location, Opportunity, SizeClass, TransportMode, Vehicle, WorldState } from "../domain/types.js";
 import type { RouteOption } from "../routing/routing-provider.js";
-import { parseTime } from "../utils/time.js";
+import { isoAt, parseTime } from "../utils/time.js";
 
 const sizeRank: Record<SizeClass, number> = { TINY: 1, SMALL: 2, MEDIUM: 3, LARGE: 4, OVERSIZED: 5 };
 
@@ -42,14 +42,15 @@ export function vehicleCanBeUsed(transportMode: TransportMode, currentLocation: 
   return undefined;
 }
 
-export function isRouteTimeFeasible(route: RouteOption, opportunity: Opportunity): string | undefined {
-  if (parseTime(route.arrivalTime) > parseTime(opportunity.pickupWindow.latest)) return `Pickup nicht erreichbar: ETA ${route.arrivalTime}, spätester Pickup ${opportunity.pickupWindow.latest}.`;
+export function isRouteTimeFeasible(route: RouteOption, opportunity: Opportunity, transferBufferMinutes = 0): string | undefined {
+  const bufferedArrival = isoAt(route.arrivalTime, transferBufferMinutes);
+  if (parseTime(bufferedArrival) > parseTime(opportunity.pickupWindow.latest)) return `Pickup nicht erreichbar: ETA ${route.arrivalTime} plus ${transferBufferMinutes} Minuten Puffer, spätester Pickup ${opportunity.pickupWindow.latest}.`;
   return undefined;
 }
 
-export function checkOpportunity(world: WorldState, opportunity: Opportunity, route: RouteOption, vehicle: Vehicle | undefined, transportMode: TransportMode, currentLocation: Location, currentVehicleLocation?: Location): Rejection | undefined {
+export function checkOpportunity(world: WorldState, opportunity: Opportunity, route: RouteOption, vehicle: Vehicle | undefined, transportMode: TransportMode, currentLocation: Location, currentVehicleLocation?: Location, transferBufferMinutes = 0): Rejection | undefined {
   if (opportunity.status !== "AVAILABLE") return { opportunityId: opportunity.id, reason: "Opportunity ist nicht verfügbar." };
-  const timeProblem = isRouteTimeFeasible(route, opportunity);
+  const timeProblem = isRouteTimeFeasible(route, opportunity, transferBufferMinutes);
   if (timeProblem) return { opportunityId: opportunity.id, reason: timeProblem };
   const vehicleProblem = vehicleCanBeUsed(transportMode, currentLocation, vehicle, opportunity, currentVehicleLocation);
   if (vehicleProblem) return { opportunityId: opportunity.id, reason: vehicleProblem };

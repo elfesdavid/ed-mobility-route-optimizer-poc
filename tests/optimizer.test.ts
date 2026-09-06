@@ -214,4 +214,20 @@ describe("Route optimizer proof of concept", () => {
     const missions = optimizer.optimize(world, { optimizationMode: "DESTINATION", riskProfile: "NORMAL", targetDestination: LOCATIONS.BERLIN, destinationDeadline: "2026-09-07T22:00:00.000Z" });
     expect(missions).toHaveLength(0);
   });
+
+  it("V – applies the configured risk transfer buffer", () => {
+    const world = createBaseWorld();
+    world.driver.currentTransportMode = "PUBLIC_TRANSPORT";
+    world.opportunities = [opportunity("buffered-job", "DIRECT_ORDER", "Düsseldorf → Köln", "DUSSELDORF", "COLOGNE", 10000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T06:00:00.000Z", "2026-09-07T07:05:00.000Z", 10, [cargo("Paket", "TINY", 1)])];
+    expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })).toHaveLength(1);
+    expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "SAFE" })).toHaveLength(0);
+  });
+
+  it("W – preserves taxi mode when replanning after a completed taxi leg", () => {
+    const world = createBaseWorld();
+    world.opportunities = [opportunity("taxi-follow-up", "DIRECT_ORDER", "Köln → Berlin", "COLOGNE", "BERLIN", 10000, "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", "2026-09-07T08:00:00.000Z", "2026-09-07T23:00:00.000Z", 10)];
+    const active: Mission = { id: "taxi-active", driverId: world.driver.id, startTime: world.driver.availableFrom, startLocation: LOCATIONS.DUSSELDORF, optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL", legs: [{ type: "TAXI", origin: LOCATIONS.DUSSELDORF, destination: LOCATIONS.COLOGNE, departureTime: "2026-09-07T06:00:00.000Z", arrivalTime: "2026-09-07T07:00:00.000Z", revenue: eur(0), cost: eur(2500), distanceKm: 40, durationMinutes: 60, confidence: "HIGH" }], scoreBreakdown: { totalRevenue: eur(0), estimatedTravelCosts: eur(2500), estimatedOtherCosts: eur(0), estimatedSurplus: eur(-2500), missionDurationMinutes: 60, revenuePerHour: 0, emptyDistanceKm: 40, riskPenalty: 0, softConstraintPenalty: 0, finalScore: -2500 }, explanationItems: [] };
+    const result = replan(active, world, "2026-09-07T07:00:00.000Z", { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" });
+    expect(result.missions[0]?.legs.filter((leg) => leg.type === "TAXI")).toHaveLength(2);
+  });
 });

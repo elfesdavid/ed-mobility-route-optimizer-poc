@@ -44,7 +44,7 @@ export class RouteOptimizer {
           const vehicles = this.vehiclesToTry(world, candidate.state, opportunity);
           let accepted = false;
           for (const vehicle of vehicles) {
-            const result = transition(world, candidate.state, opportunity, routing, vehicle);
+            const result = transition(world, candidate.state, opportunity, routing, vehicle, this.config.transferBufferMinutes[normalized.riskProfile]);
             if (!result.rejection) {
               const deltaRevenue = result.state.totalRevenueMinor - candidate.state.totalRevenueMinor;
               const deltaCost = result.state.totalCostMinor - candidate.state.totalCostMinor;
@@ -147,14 +147,14 @@ export class RouteOptimizer {
         variants.push(swapped);
       }
       for (const sequence of variants.slice(0, 40)) {
-        const replayed = this.replay(world, sequence, routing);
+        const replayed = this.replay(world, sequence, routing, this.config.transferBufferMinutes[preferences.riskProfile]);
         if (replayed) result.push(replayed);
       }
     }
     return result;
   }
 
-  private replay(world: WorldState, sequence: string[], routing: RoutingProvider): Candidate | undefined {
+  private replay(world: WorldState, sequence: string[], routing: RoutingProvider, transferBufferMinutes: number): Candidate | undefined {
     let state = initialSearchState(world);
     for (const id of sequence) {
       const opportunity = world.opportunities.find((item) => item.id === id);
@@ -162,7 +162,7 @@ export class RouteOptimizer {
       const vehicles = this.vehiclesToTry(world, state, opportunity);
       let next: SearchState | undefined;
       for (const vehicle of vehicles) {
-        const result = transition(world, state, opportunity, routing, vehicle);
+        const result = transition(world, state, opportunity, routing, vehicle, transferBufferMinutes);
         if (!result.rejection) { next = result.state; break; }
       }
       if (!next) return undefined;

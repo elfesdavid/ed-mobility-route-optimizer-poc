@@ -83,7 +83,7 @@ export function initialSearchState(world: WorldState): SearchState {
   return { location: world.driver.currentLocation, currentTime: world.driver.availableFrom, transportMode: world.driver.currentTransportMode, currentVehicleId: world.driver.currentVehicleId, currentVehicleLocation: currentVehicle?.currentLocation, usedVehicleIds: [], usedOpportunityIds: [], legs: [], explanationItems: [], totalRevenueMinor: 0, totalCostMinor: 0, lowConfidenceCount: 0, emptyDistanceKm: 0 };
 }
 
-export function transition(world: WorldState, state: SearchState, opportunity: Opportunity, routing: RoutingProvider, vehicle: Vehicle | undefined): TransitionResult {
+export function transition(world: WorldState, state: SearchState, opportunity: Opportunity, routing: RoutingProvider, vehicle: Vehicle | undefined, transferBufferMinutes = 0): TransitionResult {
   if (state.usedOpportunityIds.includes(opportunity.id)) return { state, rejection: { opportunityId: opportunity.id, reason: "Opportunity wurde bereits verwendet." } };
   if (opportunity.type === "VEHICLE_TRANSFER" && vehicle && state.usedVehicleIds.includes(vehicle.id)) return { state, rejection: { opportunityId: opportunity.id, reason: "Dieses Kundenfahrzeug wurde bereits in einer früheren Überführung verwendet." } };
   if (parseTime(state.currentTime) < parseTime(world.driver.availableFrom)) return { state, rejection: { opportunityId: opportunity.id, reason: "Fahrer ist zum Startzeitpunkt noch nicht verfügbar." } };
@@ -97,7 +97,7 @@ export function transition(world: WorldState, state: SearchState, opportunity: O
   let route: RouteOption | undefined;
   let rejection: ReturnType<typeof checkOpportunity> | undefined;
   for (const candidate of routes) {
-    rejection = checkOpportunity(world, opportunity, candidate, vehicle, state.transportMode, state.location, state.currentVehicleLocation);
+    rejection = checkOpportunity(world, opportunity, candidate, vehicle, state.transportMode, state.location, state.currentVehicleLocation, transferBufferMinutes);
     if (!rejection) {
       route = candidate;
       break;
@@ -115,7 +115,7 @@ export function transition(world: WorldState, state: SearchState, opportunity: O
     for (const candidate of serviceRoutes) {
       const candidateStart = maxIso(candidate.arrivalTime, opportunity.deliveryWindow.earliest);
       const candidateEnd = isoAt(candidateStart, opportunity.estimatedServiceDurationMinutes);
-      if (parseTime(candidateEnd) <= parseTime(opportunity.deliveryWindow.latest) && parseTime(candidateEnd) <= parseTime(world.driver.availableUntil)) {
+      if (parseTime(isoAt(candidateEnd, transferBufferMinutes)) <= parseTime(opportunity.deliveryWindow.latest) && parseTime(candidateEnd) <= parseTime(world.driver.availableUntil)) {
         serviceRoute = candidate;
         serviceEnd = candidateEnd;
         break;
@@ -131,7 +131,7 @@ export function transition(world: WorldState, state: SearchState, opportunity: O
     for (const candidate of deliveryRoutes) {
       const candidateStart = maxIso(candidate.arrivalTime, opportunity.deliveryWindow.earliest);
       const candidateEnd = isoAt(candidateStart, opportunity.estimatedServiceDurationMinutes);
-      if (parseTime(candidateEnd) <= parseTime(opportunity.deliveryWindow.latest) && parseTime(candidateEnd) <= parseTime(world.driver.availableUntil)) {
+      if (parseTime(isoAt(candidateEnd, transferBufferMinutes)) <= parseTime(opportunity.deliveryWindow.latest) && parseTime(candidateEnd) <= parseTime(world.driver.availableUntil)) {
         deliveryRoute = candidate;
         serviceStart = candidateStart;
         completionTime = candidateEnd;
