@@ -139,6 +139,7 @@ export interface MissionLeg {
   opportunityId?: string;
   bookingId?: string;
   vehicleId?: string;
+  connectionId?: string;
   cargoItems?: CargoItem[];
   revenue: Money;
   cost: Money;
