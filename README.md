@@ -62,6 +62,7 @@ npm run benchmark
 
 - Routing ist statisch und nutzt keine echte Fahrplan-, Karten- oder Verkehrsdatenquelle.
 - Cargo-Machbarkeit ist eine konservative Size-Class-Regel, kein 3D-Bin-Packing.
+- Cargo wird innerhalb einer Opportunity atomar zwischen Pickup und Delivery geführt; neue Opportunities werden in diesem Abschnitt nicht eingeschoben. Transport-Legs tragen die Cargo-Items als Audit-Information, und diese Strecke zählt nicht als Leerfahrt.
 - Local Search ist absichtlich klein gehalten und kein vollständiges LNS/CP-SAT-Verfahren.
 - Kosten und Fahrzeiten sind Fixture-Schätzungen.
 

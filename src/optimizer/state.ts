@@ -1,4 +1,4 @@
-import type { Booking, Confidence, Driver, ExplanationItem, Location, MissionLeg, Opportunity, TransportMode, Vehicle, WorldState } from "../domain/types.js";
+import type { Booking, CargoItem, Confidence, Driver, ExplanationItem, Location, MissionLeg, Opportunity, TransportMode, Vehicle, WorldState } from "../domain/types.js";
 import type { RouteOption, RoutingProvider } from "../routing/routing-provider.js";
 import { checkOpportunity } from "./feasibility.js";
 import { eur } from "../utils/money.js";
@@ -18,6 +18,7 @@ export interface SearchState {
   totalCostMinor: number;
   lowConfidenceCount: number;
   emptyDistanceKm: number;
+  carriedCargo: CargoItem[];
   lastBookingId?: string;
 }
 
@@ -51,7 +52,7 @@ function addWaitIfNeeded(state: SearchState, destination: Location, until: strin
   return {
     ...state,
     currentTime: until,
-    legs: [...state.legs, { type: "WAIT", origin: destination, destination, departureTime: state.currentTime, arrivalTime: until, revenue: eur(0), cost: eur(0), distanceKm: 0, durationMinutes: waitMinutes, confidence: "HIGH" }],
+    legs: [...state.legs, { type: "WAIT", origin: destination, destination, departureTime: state.currentTime, arrivalTime: until, cargoItems: state.carriedCargo.length > 0 ? state.carriedCargo : undefined, revenue: eur(0), cost: eur(0), distanceKm: 0, durationMinutes: waitMinutes, confidence: "HIGH" }],
   };
 }
 
@@ -63,10 +64,10 @@ function addRoute(state: SearchState, route: RouteOption, destination: Location,
     location: destination,
     currentTime: route.arrivalTime,
     currentVehicleLocation: route.mode === "OWN_VEHICLE" ? destination : state.currentVehicleLocation,
-    legs: [...state.legs, { type: routeLegType(route.mode, customerVehicle), origin: state.location, destination, departureTime: route.departureTime, arrivalTime: route.arrivalTime, vehicleId, revenue: eur(0), cost: route.cost, distanceKm: route.distanceKm, durationMinutes: route.durationMinutes, confidence }],
+    legs: [...state.legs, { type: routeLegType(route.mode, customerVehicle), origin: state.location, destination, departureTime: route.departureTime, arrivalTime: route.arrivalTime, vehicleId, cargoItems: state.carriedCargo.length > 0 ? state.carriedCargo : undefined, revenue: eur(0), cost: route.cost, distanceKm: route.distanceKm, durationMinutes: route.durationMinutes, confidence }],
     totalCostMinor: state.totalCostMinor + route.cost.amountMinor,
     lowConfidenceCount: state.lowConfidenceCount + (confidence === "LOW" ? 1 : 0),
-    emptyDistanceKm: state.emptyDistanceKm + route.distanceKm,
+    emptyDistanceKm: state.emptyDistanceKm + (state.carriedCargo.length === 0 ? route.distanceKm : 0),
   };
 }
 
@@ -80,7 +81,7 @@ function orderedRoutes(routes: RouteOption[]): RouteOption[] {
 
 export function initialSearchState(world: WorldState): SearchState {
   const currentVehicle = world.driver.currentVehicleId ? world.vehicles.find((vehicle) => vehicle.id === world.driver.currentVehicleId) : undefined;
-  return { location: world.driver.currentLocation, currentTime: world.driver.availableFrom, transportMode: world.driver.currentTransportMode, currentVehicleId: world.driver.currentVehicleId, currentVehicleLocation: currentVehicle?.currentLocation, usedVehicleIds: [], usedOpportunityIds: [], legs: [], explanationItems: [], totalRevenueMinor: 0, totalCostMinor: 0, lowConfidenceCount: 0, emptyDistanceKm: 0 };
+  return { location: world.driver.currentLocation, currentTime: world.driver.availableFrom, transportMode: world.driver.currentTransportMode, currentVehicleId: world.driver.currentVehicleId, currentVehicleLocation: currentVehicle?.currentLocation, usedVehicleIds: [], usedOpportunityIds: [], legs: [], explanationItems: [], totalRevenueMinor: 0, totalCostMinor: 0, lowConfidenceCount: 0, emptyDistanceKm: 0, carriedCargo: [] };
 }
 
 export function transition(world: WorldState, state: SearchState, opportunity: Opportunity, routing: RoutingProvider, vehicle: Vehicle | undefined, transferBufferMinutes = 0): TransitionResult {
@@ -122,8 +123,11 @@ export function transition(world: WorldState, state: SearchState, opportunity: O
       }
     }
     if (!serviceRoute || !serviceEnd) return { state, rejection: { opportunityId: opportunity.id, reason: "Keine Fahrstrecke für Fahrzeugüberführung innerhalb der Delivery- und Verfügbarkeitsfenster verfügbar." } };
-    next = { ...next, location: opportunity.destination, currentTime: serviceEnd, transportMode: "WALKING", currentVehicleId: undefined, usedVehicleIds: vehicle ? [...next.usedVehicleIds, vehicle.id] : next.usedVehicleIds, legs: [...next.legs, { type: serviceLegType(opportunity), origin: opportunity.origin, destination: opportunity.destination, departureTime: next.currentTime, arrivalTime: serviceEnd, opportunityId: opportunity.id, bookingId: booking?.id, vehicleId: vehicle?.id, revenue: opportunity.revenue, cost: eur(0), distanceKm: serviceRoute.distanceKm, durationMinutes: minutesBetween(next.currentTime, serviceEnd), confidence: confidenceFor(serviceRoute, opportunity) }], totalRevenueMinor: next.totalRevenueMinor + opportunity.revenue.amountMinor, lowConfidenceCount: next.lowConfidenceCount + (confidenceFor(serviceRoute, opportunity) === "LOW" ? 1 : 0) };
+    next = { ...next, location: opportunity.destination, currentTime: serviceEnd, transportMode: "WALKING", currentVehicleId: undefined, carriedCargo: [], usedVehicleIds: vehicle ? [...next.usedVehicleIds, vehicle.id] : next.usedVehicleIds, legs: [...next.legs, { type: serviceLegType(opportunity), origin: opportunity.origin, destination: opportunity.destination, departureTime: next.currentTime, arrivalTime: serviceEnd, opportunityId: opportunity.id, bookingId: booking?.id, vehicleId: vehicle?.id, cargoItems: opportunity.cargoItems.length > 0 ? opportunity.cargoItems : undefined, revenue: opportunity.revenue, cost: eur(0), distanceKm: serviceRoute.distanceKm, durationMinutes: minutesBetween(next.currentTime, serviceEnd), confidence: confidenceFor(serviceRoute, opportunity) }], totalRevenueMinor: next.totalRevenueMinor + opportunity.revenue.amountMinor, lowConfidenceCount: next.lowConfidenceCount + (confidenceFor(serviceRoute, opportunity) === "LOW" ? 1 : 0) };
   } else {
+    // V1 models cargo opportunities atomically: cargo is carried only between
+    // pickup and delivery, with no interleaved opportunity in between.
+    next = { ...next, carriedCargo: opportunity.cargoItems };
     const deliveryRoutes = orderedRoutes(routing.getRoutes({ origin: opportunity.origin, destination: opportunity.destination, departureTime: next.currentTime, transportMode: next.transportMode, vehicleId: next.currentVehicleId }));
     let deliveryRoute: RouteOption | undefined;
     let completionTime: string | undefined;
@@ -141,7 +145,7 @@ export function transition(world: WorldState, state: SearchState, opportunity: O
     if (!deliveryRoute || !completionTime || !serviceStart) return { state, rejection: { opportunityId: opportunity.id, reason: "Kein erreichbarer Transfer zur Lieferung innerhalb der Delivery- und Verfügbarkeitsfenster verfügbar." } };
     next = addRoute(next, deliveryRoute, opportunity.destination, false, next.currentVehicleId);
     next = addWaitIfNeeded(next, opportunity.destination, serviceStart);
-    next = { ...next, legs: [...next.legs, { type: serviceLegType(opportunity), origin: opportunity.origin, destination: opportunity.destination, departureTime: next.currentTime, arrivalTime: completionTime, opportunityId: opportunity.id, bookingId: booking?.id, vehicleId: next.currentVehicleId, revenue: opportunity.revenue, cost: eur(0), distanceKm: 0, durationMinutes: opportunity.estimatedServiceDurationMinutes, confidence: confidenceFor(deliveryRoute, opportunity) }], currentTime: completionTime, totalRevenueMinor: next.totalRevenueMinor + opportunity.revenue.amountMinor, lowConfidenceCount: next.lowConfidenceCount + (confidenceFor(deliveryRoute, opportunity) === "LOW" ? 1 : 0) };
+    next = { ...next, carriedCargo: [], legs: [...next.legs, { type: serviceLegType(opportunity), origin: opportunity.origin, destination: opportunity.destination, departureTime: next.currentTime, arrivalTime: completionTime, opportunityId: opportunity.id, bookingId: booking?.id, vehicleId: next.currentVehicleId, cargoItems: opportunity.cargoItems.length > 0 ? opportunity.cargoItems : undefined, revenue: opportunity.revenue, cost: eur(0), distanceKm: 0, durationMinutes: opportunity.estimatedServiceDurationMinutes, confidence: confidenceFor(deliveryRoute, opportunity) }], currentTime: completionTime, totalRevenueMinor: next.totalRevenueMinor + opportunity.revenue.amountMinor, lowConfidenceCount: next.lowConfidenceCount + (confidenceFor(deliveryRoute, opportunity) === "LOW" ? 1 : 0) };
   }
   return { state: { ...next, usedOpportunityIds: [...next.usedOpportunityIds, opportunity.id], lastBookingId: booking?.id, explanationItems: [...next.explanationItems, { kind: "POSITIVE", text: `+${(opportunity.revenue.amountMinor / 100).toFixed(2)} € ${opportunity.title}`, opportunityId: opportunity.id }] } };
 }

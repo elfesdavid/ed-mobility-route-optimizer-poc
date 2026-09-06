@@ -37,7 +37,7 @@ export function scoreLegs(legs: MissionLeg[], startTime: string, preferences: Mi
   const totalRevenueMinor = legs.reduce((sum, leg) => sum + leg.revenue.amountMinor, 0);
   const totalCostMinor = legs.reduce((sum, leg) => sum + leg.cost.amountMinor, 0);
   const lowConfidenceCount = legs.filter((leg) => leg.confidence === "LOW").length;
-  const emptyDistanceKm = legs.filter((leg) => leg.type !== "WAIT" && leg.type !== "OPPORTUNITY_SERVICE").reduce((sum, leg) => sum + leg.distanceKm, 0);
+  const emptyDistanceKm = legs.filter((leg) => leg.type !== "WAIT" && leg.type !== "OPPORTUNITY_SERVICE" && (!leg.cargoItems || leg.cargoItems.length === 0)).reduce((sum, leg) => sum + leg.distanceKm, 0);
   return scoreTotals(totalRevenueMinor, totalCostMinor, duration, lowConfidenceCount, emptyDistanceKm, legs.at(-1)?.destination, lastArrival, preferences, config);
 }
 

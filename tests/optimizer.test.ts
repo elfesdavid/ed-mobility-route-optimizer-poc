@@ -245,4 +245,17 @@ describe("Route optimizer proof of concept", () => {
     const mission = optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })[0];
     expect(mission?.legs.find((leg) => leg.opportunityId === "timed-job")?.arrivalTime).toBe("2026-09-07T07:15:00.000Z");
   });
+
+  it("Y – exposes carried cargo and does not count cargo transport as empty distance", () => {
+    const world = createBaseWorld();
+    world.driver.currentTransportMode = "PUBLIC_TRANSPORT";
+    world.opportunities = [opportunity("cargo-state", "CARGO_TRANSPORT", "Paket Düsseldorf → Köln", "DUSSELDORF", "COLOGNE", 10000, "2026-09-07T06:00:00.000Z", "2026-09-07T08:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", 10, [cargo("Paket", "TINY", 1)])];
+    const transitionResult = transition(world, initialSearchState(world), world.opportunities[0]!, new FixtureRoutingProvider(world), undefined);
+    expect(transitionResult.rejection).toBeUndefined();
+    expect(transitionResult.state.carriedCargo).toHaveLength(0);
+    const mission = optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL", topN: 1 })[0];
+    expect(mission).toBeDefined();
+    expect(mission?.legs.some((leg) => leg.cargoItems?.some((item) => item.description === "Paket"))).toBe(true);
+    expect(mission?.scoreBreakdown.emptyDistanceKm).toBe(0);
+  });
 });

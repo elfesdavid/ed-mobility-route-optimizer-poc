@@ -8,7 +8,7 @@ Risikoprofile konfigurieren den Transferpuffer und die Risikobewertung. Der Puff
 
 ## Zustandsübergänge
 
-Ein `SearchState` ist ein Wertobjekt: aktuelle Location, aktuelle Zeit, Transportmodus, Fahrzeug, dessen aktuelle Search-State-Position, Opportunity-Sequenz, Legs und kumulierte Kennzahlen. Eigene Fahrzeuge bewegen sich bei `OWN_VEHICLE`-Legs mit dem Fahrer; der unveränderte `WorldState` bleibt nur die Ausgangsbasis. Eine Fahrzeugüberführung endet am Ziel im Modus `WALKING`, weil das Kundenfahrzeug dort abgegeben wurde. Cargo wird für die gesamte Aktion gegen die aktuelle Kapazität geprüft. Der übergebene `WorldState` wird nie verändert.
+Ein `SearchState` ist ein Wertobjekt: aktuelle Location, aktuelle Zeit, Transportmodus, Fahrzeug, dessen aktuelle Search-State-Position, Opportunity-Sequenz, Legs und kumulierte Kennzahlen. Eigene Fahrzeuge bewegen sich bei `OWN_VEHICLE`-Legs mit dem Fahrer; der unveränderte `WorldState` bleibt nur die Ausgangsbasis. Eine Fahrzeugüberführung endet am Ziel im Modus `WALKING`, weil das Kundenfahrzeug dort abgegeben wurde. Cargo wird für die gesamte Aktion gegen die aktuelle Kapazität geprüft, während des Transports als `carriedCargo` geführt und auf den Transport-Legs sichtbar gemacht. Die Cargo-Strecke zählt dadurch nicht als Leerfahrt. V1 behandelt eine Cargo-Opportunity weiterhin atomar: Zwischen Pickup und Delivery werden keine neuen Opportunities eingeschoben. Der übergebene `WorldState` wird nie verändert.
 
 ## Beam Search und Lookahead
 
