@@ -28,11 +28,15 @@ export function cargoFitsTransport(items: CargoItem[], transportMode: TransportM
     && totalVolume <= profileVolume;
 }
 
-export function vehicleCanBeUsed(transportMode: TransportMode, currentLocation: Location, vehicle: Vehicle | undefined, opportunity: Opportunity): string | undefined {
+export function vehicleCanBeUsed(transportMode: TransportMode, currentLocation: Location, vehicle: Vehicle | undefined, opportunity: Opportunity, currentVehicleLocation?: Location): string | undefined {
   if (opportunity.constraints.requiredVehicleType && vehicle?.vehicleType !== opportunity.constraints.requiredVehicleType) return "Benötigter Fahrzeugtyp ist nicht verfügbar.";
   if (transportMode !== "OWN_VEHICLE" && transportMode !== "CUSTOMER_VEHICLE" && opportunity.type !== "VEHICLE_TRANSFER") return undefined;
   if (!vehicle) return "Kein Fahrzeug für die Fahrzeugüberführung verfügbar.";
   if (vehicle.availabilityStatus !== "AVAILABLE") return "Fahrzeug ist nicht verfügbar.";
+  if (opportunity.type !== "VEHICLE_TRANSFER" && currentVehicleLocation) {
+    if (currentVehicleLocation.city !== currentLocation.city) return `Eigenes Fahrzeug befindet sich in ${currentVehicleLocation.city}, nicht am Fahrerstandort ${currentLocation.city}.`;
+    return undefined;
+  }
   const expectedLocation = opportunity.type === "VEHICLE_TRANSFER" ? opportunity.origin : currentLocation;
   if (vehicle.currentLocation.city !== expectedLocation.city) return `Fahrzeug befindet sich in ${vehicle.currentLocation.city}, nicht am benötigten Standort.`;
   return undefined;
@@ -43,11 +47,11 @@ export function isRouteTimeFeasible(route: RouteOption, opportunity: Opportunity
   return undefined;
 }
 
-export function checkOpportunity(world: WorldState, opportunity: Opportunity, route: RouteOption, vehicle: Vehicle | undefined, transportMode: TransportMode, currentLocation: Location): Rejection | undefined {
+export function checkOpportunity(world: WorldState, opportunity: Opportunity, route: RouteOption, vehicle: Vehicle | undefined, transportMode: TransportMode, currentLocation: Location, currentVehicleLocation?: Location): Rejection | undefined {
   if (opportunity.status !== "AVAILABLE") return { opportunityId: opportunity.id, reason: "Opportunity ist nicht verfügbar." };
   const timeProblem = isRouteTimeFeasible(route, opportunity);
   if (timeProblem) return { opportunityId: opportunity.id, reason: timeProblem };
-  const vehicleProblem = vehicleCanBeUsed(transportMode, currentLocation, vehicle, opportunity);
+  const vehicleProblem = vehicleCanBeUsed(transportMode, currentLocation, vehicle, opportunity, currentVehicleLocation);
   if (vehicleProblem) return { opportunityId: opportunity.id, reason: vehicleProblem };
   if (!cargoFitsTransport(opportunity.cargoItems, transportMode, vehicle, opportunity)) return { opportunityId: opportunity.id, reason: "Cargo passt nicht zum aktuellen Transportmittel oder Fahrzeug." };
   return undefined;

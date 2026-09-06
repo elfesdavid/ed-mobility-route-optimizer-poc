@@ -9,6 +9,7 @@ export interface SearchState {
   currentTime: string;
   transportMode: TransportMode;
   currentVehicleId?: string;
+  currentVehicleLocation?: Location;
   usedVehicleIds: string[];
   usedOpportunityIds: string[];
   legs: MissionLeg[];
@@ -61,6 +62,7 @@ function addRoute(state: SearchState, route: RouteOption, destination: Location,
     ...state,
     location: destination,
     currentTime: route.arrivalTime,
+    currentVehicleLocation: route.mode === "OWN_VEHICLE" ? destination : state.currentVehicleLocation,
     legs: [...state.legs, { type: routeLegType(route.mode, customerVehicle), origin: state.location, destination, departureTime: route.departureTime, arrivalTime: route.arrivalTime, vehicleId, revenue: eur(0), cost: route.cost, distanceKm: route.distanceKm, durationMinutes: route.durationMinutes, confidence }],
     totalCostMinor: state.totalCostMinor + route.cost.amountMinor,
     lowConfidenceCount: state.lowConfidenceCount + (confidence === "LOW" ? 1 : 0),
@@ -77,7 +79,8 @@ function orderedRoutes(routes: RouteOption[]): RouteOption[] {
 }
 
 export function initialSearchState(world: WorldState): SearchState {
-  return { location: world.driver.currentLocation, currentTime: world.driver.availableFrom, transportMode: world.driver.currentTransportMode, currentVehicleId: world.driver.currentVehicleId, usedVehicleIds: [], usedOpportunityIds: [], legs: [], explanationItems: [], totalRevenueMinor: 0, totalCostMinor: 0, lowConfidenceCount: 0, emptyDistanceKm: 0 };
+  const currentVehicle = world.driver.currentVehicleId ? world.vehicles.find((vehicle) => vehicle.id === world.driver.currentVehicleId) : undefined;
+  return { location: world.driver.currentLocation, currentTime: world.driver.availableFrom, transportMode: world.driver.currentTransportMode, currentVehicleId: world.driver.currentVehicleId, currentVehicleLocation: currentVehicle?.currentLocation, usedVehicleIds: [], usedOpportunityIds: [], legs: [], explanationItems: [], totalRevenueMinor: 0, totalCostMinor: 0, lowConfidenceCount: 0, emptyDistanceKm: 0 };
 }
 
 export function transition(world: WorldState, state: SearchState, opportunity: Opportunity, routing: RoutingProvider, vehicle: Vehicle | undefined): TransitionResult {
@@ -87,13 +90,14 @@ export function transition(world: WorldState, state: SearchState, opportunity: O
   if (parseTime(state.currentTime) > parseTime(world.driver.availableUntil)) return { state, rejection: { opportunityId: opportunity.id, reason: "Fahrer ist nicht mehr verfügbar." } };
   if (state.transportMode === "OWN_VEHICLE" && state.currentVehicleId) {
     const currentVehicle = world.vehicles.find((item) => item.id === state.currentVehicleId);
-    if (currentVehicle && currentVehicle.currentLocation.city !== state.location.city) return { state, rejection: { opportunityId: opportunity.id, reason: "Eigenes Fahrzeug ist am aktuellen Fahrerstandort nicht erreichbar." } };
+    const vehicleLocation = state.currentVehicleLocation ?? currentVehicle?.currentLocation;
+    if (vehicleLocation && vehicleLocation.city !== state.location.city) return { state, rejection: { opportunityId: opportunity.id, reason: "Eigenes Fahrzeug ist am aktuellen Fahrerstandort nicht erreichbar." } };
   }
   const routes = orderedRoutes(routing.getRoutes({ origin: state.location, destination: opportunity.origin, departureTime: state.currentTime, transportMode: state.transportMode, vehicleId: state.currentVehicleId }));
   let route: RouteOption | undefined;
   let rejection: ReturnType<typeof checkOpportunity> | undefined;
   for (const candidate of routes) {
-    rejection = checkOpportunity(world, opportunity, candidate, vehicle, state.transportMode, state.location);
+    rejection = checkOpportunity(world, opportunity, candidate, vehicle, state.transportMode, state.location, state.currentVehicleLocation);
     if (!rejection) {
       route = candidate;
       break;

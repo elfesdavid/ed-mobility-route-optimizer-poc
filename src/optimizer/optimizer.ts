@@ -174,8 +174,11 @@ export class RouteOptimizer {
   private destinationTransfer(world: WorldState, preferences: MissionPreferences, routing: RoutingProvider): Candidate | undefined {
     if (!preferences.targetDestination || !preferences.destinationDeadline) return undefined;
     const state = initialSearchState(world);
-    const route = routing.getRoutes({ origin: state.location, destination: preferences.targetDestination, departureTime: state.currentTime, transportMode: state.transportMode })[0];
-    if (!route || parseTime(route.arrivalTime) > parseTime(preferences.destinationDeadline)) return undefined;
+    const latestArrival = Math.min(parseTime(preferences.destinationDeadline), parseTime(world.driver.availableUntil));
+    const routes = routing.getRoutes({ origin: state.location, destination: preferences.targetDestination, departureTime: state.currentTime, transportMode: state.transportMode })
+      .sort((a, b) => parseTime(a.arrivalTime) - parseTime(b.arrivalTime) || a.cost.amountMinor - b.cost.amountMinor || (a.connectionId ?? "").localeCompare(b.connectionId ?? ""));
+    const route = routes.find((candidate) => parseTime(candidate.arrivalTime) <= latestArrival);
+    if (!route) return undefined;
     const next: SearchState = { ...state, location: preferences.targetDestination, currentTime: route.arrivalTime, legs: [{ type: route.mode === "PUBLIC_TRANSPORT" ? "TRAIN" : "WALK", origin: state.location, destination: preferences.targetDestination, departureTime: route.departureTime, arrivalTime: route.arrivalTime, revenue: eur(0), cost: route.cost, distanceKm: route.distanceKm, durationMinutes: route.durationMinutes, confidence: route.confidence }], totalCostMinor: route.cost.amountMinor, emptyDistanceKm: route.distanceKm };
     return { state: next, sequence: [] };
   }

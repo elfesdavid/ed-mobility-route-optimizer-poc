@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { createBaseWorld, createDemoWorld, createSyntheticOpportunities, opportunity, cargo } from "../src/fixtures/world.js";
 import { LOCATIONS } from "../src/fixtures/locations.js";
 import { RouteOptimizer } from "../src/optimizer/optimizer.js";
+import { FixtureRoutingProvider } from "../src/routing/routing-provider.js";
+import { initialSearchState, transition } from "../src/optimizer/state.js";
 import { replan } from "../src/optimizer/replanning.js";
 import type { Mission, WorldState } from "../src/domain/types.js";
 import { eur } from "../src/utils/money.js";
@@ -52,6 +54,7 @@ describe("Route optimizer proof of concept", () => {
     const world = createBaseWorld();
     const mission = optimizer.optimize(world, { optimizationMode: "DESTINATION", riskProfile: "NORMAL", targetDestination: LOCATIONS.BERLIN, destinationDeadline: "2026-09-07T22:00:00.000Z" })[0];
     expect(mission?.legs.at(-1)?.destination.city).toBe("Berlin");
+    expect(mission?.legs.every((leg) => !leg.opportunityId)).toBe(true);
     expect(mission?.legs.at(-1)?.arrivalTime && Date.parse(mission.legs.at(-1)?.arrivalTime ?? "") <= Date.parse("2026-09-07T22:00:00.000Z")).toBe(true);
   });
 
@@ -92,6 +95,7 @@ describe("Route optimizer proof of concept", () => {
     const world = createBaseWorld();
     world.opportunities = createSyntheticOpportunities(50);
     const missions = optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL", maxStops: 3, lookaheadDepth: 3 });
+    expect(missions.length).toBeGreaterThan(0);
     for (const mission of missions) {
       const ids = mission.legs.flatMap((leg) => leg.opportunityId ? [leg.opportunityId] : []);
       expect(new Set(ids).size).toBe(ids.length);
@@ -125,11 +129,16 @@ describe("Route optimizer proof of concept", () => {
     expect(new Set(mission?.legs.flatMap((leg) => leg.opportunityId ? [leg.opportunityId] : [])).size).toBeLessThanOrEqual(1);
   });
 
-  it("M – ignores confirmed bookings belonging to another driver", () => {
+  it("M – does not force confirmed bookings belonging to another driver", () => {
     const world = createBaseWorld();
-    world.opportunities = [opportunity("other-driver-job", "DIRECT_ORDER", "Other driver job", "DUSSELDORF", "COLOGNE", 10000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", 10)];
+    world.opportunities = [
+      opportunity("other-driver-job", "DIRECT_ORDER", "Other driver job", "DUSSELDORF", "COLOGNE", 1000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", 10),
+      opportunity("available-job", "DIRECT_ORDER", "Available job", "DUSSELDORF", "COLOGNE", 10000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", 10),
+    ];
     world.confirmedBookings = [{ id: "other-booking", opportunityId: "other-driver-job", driverId: "someone-else", status: "CONFIRMED", bookedAt: world.snapshotAt }];
-    expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })[0]?.legs.some((leg) => leg.opportunityId === "other-driver-job")).toBe(true);
+    const mission = optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL", maxStops: 1, topN: 1 })[0];
+    expect(mission?.legs.some((leg) => leg.opportunityId === "available-job")).toBe(true);
+    expect(mission?.legs.some((leg) => leg.opportunityId === "other-driver-job")).toBe(false);
   });
 
   it("N – does not use an unavailable current vehicle", () => {
@@ -158,13 +167,15 @@ describe("Route optimizer proof of concept", () => {
     expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })).toHaveLength(1);
   });
 
-  it("Q – tries a later routing option when the first delivery option misses the deadline", () => {
+  it("Q – selects the earliest feasible delivery option deterministically", () => {
     const world = createBaseWorld();
     const firstConnection = world.transitConnections.find((connection) => connection.id === "dus-col");
     expect(firstConnection).toBeDefined();
     world.transitConnections.unshift({ ...firstConnection!, id: "dus-col-too-slow", durationMinutes: 300 });
     world.opportunities = [opportunity("alternative-delivery", "DIRECT_ORDER", "Alternative delivery", "DUSSELDORF", "COLOGNE", 10000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T06:00:00.000Z", "2026-09-07T08:00:00.000Z", 10, [cargo("Tiny", "TINY", 1)])];
-    expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })).toHaveLength(1);
+    const mission = optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })[0];
+    expect(mission).toBeDefined();
+    expect(mission?.legs.find((leg) => leg.opportunityId === "alternative-delivery")?.arrivalTime).toBe("2026-09-07T06:45:00.000Z");
   });
 
   it("R – rejects more than one parcel on the conservative public-transport capacity", () => {
@@ -181,5 +192,26 @@ describe("Route optimizer proof of concept", () => {
     world.driver.currentVehicleId = "vehicle-mercedes-a";
     world.opportunities = [opportunity("too-heavy", "DIRECT_ORDER", "Too heavy", "DUSSELDORF", "COLOGNE", 10000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", 10, [cargo("Heavy", "TINY", 400)])];
     expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })).toHaveLength(0);
+  });
+
+  it("T – moves the driver's own vehicle with an own-vehicle route", () => {
+    const world = createBaseWorld();
+    world.driver.currentTransportMode = "OWN_VEHICLE";
+    world.driver.currentVehicleId = "vehicle-mercedes-a";
+    const first = opportunity("own-first", "DIRECT_ORDER", "Düsseldorf → Köln", "DUSSELDORF", "COLOGNE", 10000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", 10, [cargo("Paket", "TINY", 1)]);
+    const second = opportunity("own-second", "DIRECT_ORDER", "Köln → Dortmund", "COLOGNE", "DORTMUND", 10000, "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", "2026-09-07T08:00:00.000Z", "2026-09-07T16:00:00.000Z", 10, [cargo("Paket", "TINY", 1)]);
+    const routing = new FixtureRoutingProvider(world);
+    const firstResult = transition(world, initialSearchState(world), first, routing, world.vehicles[0]);
+    expect(firstResult.rejection).toBeUndefined();
+    expect(firstResult.state.currentVehicleLocation?.city).toBe("Köln");
+    const secondResult = transition(world, firstResult.state, second, routing, world.vehicles[0]);
+    expect(secondResult.rejection).toBeUndefined();
+  });
+
+  it("U – destination mode respects driver availability", () => {
+    const world = createBaseWorld();
+    world.driver.availableUntil = "2026-09-07T10:00:00.000Z";
+    const missions = optimizer.optimize(world, { optimizationMode: "DESTINATION", riskProfile: "NORMAL", targetDestination: LOCATIONS.BERLIN, destinationDeadline: "2026-09-07T22:00:00.000Z" });
+    expect(missions).toHaveLength(0);
   });
 });
