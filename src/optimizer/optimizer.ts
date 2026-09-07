@@ -182,7 +182,7 @@ export class RouteOptimizer {
       .sort((a, b) => parseTime(a.arrivalTime) - parseTime(b.arrivalTime) || a.cost.amountMinor - b.cost.amountMinor || (a.connectionId ?? "").localeCompare(b.connectionId ?? ""));
     const route = routes.find((candidate) => parseTime(candidate.arrivalTime) <= latestArrival);
     if (!route) return undefined;
-    const next: SearchState = { ...state, location: preferences.targetDestination, currentTime: route.arrivalTime, legs: [{ type: route.mode === "PUBLIC_TRANSPORT" ? "TRAIN" : "WALK", transportMode: route.mode, origin: state.location, destination: preferences.targetDestination, departureTime: route.departureTime, arrivalTime: route.arrivalTime, connectionId: route.connectionId, revenue: eur(0), cost: route.cost, distanceKm: route.distanceKm, durationMinutes: route.durationMinutes, confidence: route.confidence }], totalCostMinor: route.cost.amountMinor, emptyDistanceKm: route.distanceKm };
+    const next: SearchState = { ...state, location: preferences.targetDestination, currentTime: route.arrivalTime, legs: [{ type: route.mode === "PUBLIC_TRANSPORT" ? "TRAIN" : "WALK", transportMode: route.mode, continuationTransportMode: route.mode, origin: state.location, destination: preferences.targetDestination, departureTime: route.departureTime, arrivalTime: route.arrivalTime, connectionId: route.connectionId, revenue: eur(0), cost: route.cost, distanceKm: route.distanceKm, durationMinutes: route.durationMinutes, confidence: route.confidence }], totalCostMinor: route.cost.amountMinor, emptyDistanceKm: route.distanceKm };
     return { state: next, sequence: [] };
   }
 }

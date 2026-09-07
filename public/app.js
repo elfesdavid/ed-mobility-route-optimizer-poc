@@ -11,7 +11,8 @@ const city = (location) => location?.city ?? "—";
 const time = (iso) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 const modeLabel = { MAX_REVENUE: "Maximaler Umsatz", MAX_REVENUE_PER_HOUR: "Umsatz pro Stunde", MAX_ESTIMATED_SURPLUS: "Geschätzter Überschuss", BALANCED: "Ausgewogen", DESTINATION: "Zielmodus" };
 const locationLabel = { DUSSELDORF: "Düsseldorf", COLOGNE: "Köln", HAMBURG: "Hamburg", BREMEN: "Bremen", BERLIN: "Berlin" };
-const transportLabel = { WALKING: "Zu Fuß", PUBLIC_TRANSPORT: "ÖPNV", OWN_VEHICLE: "Eigenes Fahrzeug", TAXI: "Taxi" };
+const transportLabel = { WALKING: "Zu Fuß", PUBLIC_TRANSPORT: "ÖPNV", OWN_VEHICLE: "Eigenes Fahrzeug", CUSTOMER_VEHICLE: "Kundenfahrzeug", TAXI: "Taxi", RIDESHARE: "Fahrdienst" };
+const legTypeLabel = { WALK: "Zu Fuß", TRAIN: "Zug", BUS: "Bus", FLIGHT: "Flug", TAXI: "Taxi", RIDESHARE: "Fahrdienst", DRIVE: "Fahrt", OPPORTUNITY_SERVICE: "Auftrag", WAIT: "Warten" };
 
 function renderMission(mission, index) {
   const score = mission.scoreBreakdown;
@@ -19,15 +20,15 @@ function renderMission(mission, index) {
     <li class="leg">
       <div class="leg-marker">${String(legIndex + 1).padStart(2, "0")}</div>
       <div class="leg-main">
-        <strong>${leg.opportunityId ? (leg.revenue.amountMinor > 0 ? "OPPORTUNITY" : leg.type) : leg.type}</strong>
+        <strong>${leg.opportunityId ? "AUFTRAG" : (legTypeLabel[leg.type] ?? leg.type)}</strong>
         <span>${city(leg.origin)} → ${city(leg.destination)}</span>
-        <small>${time(leg.departureTime)}–${time(leg.arrivalTime)} · ${leg.transportMode}</small>
+        <small>${time(leg.departureTime)}–${time(leg.arrivalTime)} · ${transportLabel[leg.transportMode] ?? leg.transportMode}</small>
       </div>
       <b class="leg-money ${leg.revenue.amountMinor > 0 ? "positive" : "negative"}">${leg.revenue.amountMinor > 0 ? "+" : ""}${euro(leg.revenue)}</b>
     </li>`).join("");
   return `<article class="mission ${index === 0 ? "mission--featured" : ""}">
-    <div class="mission-head"><div class="mission-ident"><span class="mission-number">ROUTE ${String(index + 1).padStart(2, "0")} · ${index === 0 ? "PRIME" : "ALTERNATIVE"}</span><h3>${modeLabel[mission.optimizationMode] ?? mission.optimizationMode}</h3></div><span class="score"><small>NET SCORE</small>${score.finalScore.toFixed(0)}</span></div>
-    <div class="metrics"><div><span>REVENUE</span><strong>${euro(score.totalRevenue)}</strong></div><div><span>TRAVEL COST</span><strong>${euro(score.estimatedTravelCosts)}</strong></div><div><span>EST. SURPLUS</span><strong>${euro(score.estimatedSurplus)}</strong></div><div><span>EMPTY RUN</span><strong>${score.emptyDistanceKm.toFixed(1)} km</strong></div></div>
+    <div class="mission-head"><div class="mission-ident"><span class="mission-number">ROUTE ${String(index + 1).padStart(2, "0")} · ${index === 0 ? "HAUPTROUTE" : "ALTERNATIVE"}</span><h3>${modeLabel[mission.optimizationMode] ?? mission.optimizationMode}</h3></div><span class="score"><small>GESAMTSCORE</small>${score.finalScore.toFixed(0)}</span></div>
+    <div class="metrics"><div><span>UMSATZ</span><strong>${euro(score.totalRevenue)}</strong></div><div><span>FAHRKOSTEN</span><strong>${euro(score.estimatedTravelCosts)}</strong></div><div><span>GESCHÄTZTER ÜBERSCHUSS</span><strong>${euro(score.estimatedSurplus)}</strong></div><div><span>LEERFAHRT</span><strong>${score.emptyDistanceKm.toFixed(1)} km</strong></div></div>
     <ol class="legs">${legs}</ol>
   </article>`;
 }

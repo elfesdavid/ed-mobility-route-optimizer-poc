@@ -134,6 +134,7 @@ export type MissionLegType =
 export interface MissionLeg {
   type: MissionLegType;
   transportMode: TransportMode;
+  continuationTransportMode?: TransportMode;
   origin: Location;
   destination: Location;
   departureTime: string;
