@@ -22,7 +22,7 @@ Kandidaten mit bestätigten Bookings erhalten beim partiellen Ranking einen star
 
 Die Rohwerte bleiben nachvollziehbar: Geld wird intern in Minor Units geführt, `revenuePerHour` ist Euro pro Stunde. Der Modus `MAX_REVENUE_PER_HOUR` verwendet dafür ausschließlich eine dokumentierte Skalierung im finalen Vergleichsscore; die angezeigte Kennzahl bleibt in Euro pro Stunde.
 
-Der aktuelle PoC berechnet `estimatedOtherCosts` und `softConstraintPenalty` noch nicht. Beide Felder bleiben deshalb explizit null bzw. `0`, statt nicht vorhandene Kosten oder Soft-Regeln zu erfinden.
+Der aktuelle PoC berechnet `estimatedOtherCosts` und `softConstraintPenalty` noch nicht. Beide Felder bleiben deshalb auf neutralen Werten (`eur(0)` bzw. `0`), statt nicht vorhandene Kosten oder Soft-Regeln zu erfinden.
 
 `excludeNegativeContribution` ist ein Filter für die fertige Mission, nicht für jeden einzelnen Übergang. Dadurch darf eine kurzfristig negative Positionierungs- oder Transferstrecke im Lookahead liegen, wenn die gesamte Mission einen positiven Überschuss erzielt. Eine alleinstehende Mission mit Umsatz kleiner oder gleich den Reisekosten wird weiterhin verworfen.
 
