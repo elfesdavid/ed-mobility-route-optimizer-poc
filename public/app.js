@@ -15,15 +15,15 @@ function renderMission(mission, index) {
     <li class="leg">
       <div class="leg-marker">${String(legIndex + 1).padStart(2, "0")}</div>
       <div class="leg-main">
-        <strong>${leg.opportunityId ? (leg.revenue.amountMinor > 0 ? "Opportunity" : leg.type) : leg.type}</strong>
+        <strong>${leg.opportunityId ? (leg.revenue.amountMinor > 0 ? "OPPORTUNITY" : leg.type) : leg.type}</strong>
         <span>${city(leg.origin)} → ${city(leg.destination)}</span>
         <small>${time(leg.departureTime)}–${time(leg.arrivalTime)} · ${leg.transportMode}</small>
       </div>
       <b class="leg-money ${leg.revenue.amountMinor > 0 ? "positive" : "negative"}">${leg.revenue.amountMinor > 0 ? "+" : ""}${euro(leg.revenue)}</b>
     </li>`).join("");
-  return `<article class="mission">
-    <div class="mission-head"><div><span class="mission-number">OPTION ${index + 1}</span><h3>${modeLabel[mission.optimizationMode] ?? mission.optimizationMode}</h3></div><span class="score">${score.finalScore.toFixed(0)} Score</span></div>
-    <div class="metrics"><div><span>Umsatz</span><strong>${euro(score.totalRevenue)}</strong></div><div><span>Kosten</span><strong>${euro(score.estimatedTravelCosts)}</strong></div><div><span>Überschuss</span><strong>${euro(score.estimatedSurplus)}</strong></div><div><span>Leerstrecke</span><strong>${score.emptyDistanceKm.toFixed(1)} km</strong></div></div>
+  return `<article class="mission ${index === 0 ? "mission--featured" : ""}">
+    <div class="mission-head"><div class="mission-ident"><span class="mission-number">ROUTE ${String(index + 1).padStart(2, "0")} · ${index === 0 ? "PRIME" : "ALTERNATIVE"}</span><h3>${modeLabel[mission.optimizationMode] ?? mission.optimizationMode}</h3></div><span class="score"><small>NET SCORE</small>${score.finalScore.toFixed(0)}</span></div>
+    <div class="metrics"><div><span>REVENUE</span><strong>${euro(score.totalRevenue)}</strong></div><div><span>TRAVEL COST</span><strong>${euro(score.estimatedTravelCosts)}</strong></div><div><span>EST. SURPLUS</span><strong>${euro(score.estimatedSurplus)}</strong></div><div><span>EMPTY RUN</span><strong>${score.emptyDistanceKm.toFixed(1)} km</strong></div></div>
     <ol class="legs">${legs}</ol>
   </article>`;
 }

@@ -10,15 +10,23 @@
   <body>
     <main class="shell">
       <header class="hero">
-        <h1>Welche Mission lohnt sich?</h1>
-        <p class="intro">Die Demo plant aus mehreren Opportunities eine mehrstufige Mission. Die Daten stammen aus der reproduzierbaren Demo-Welt des Optimizers.</p>
+        <div class="brandline"><span class="brand-mark">ED</span><span>ED MOBILITY // COMMAND DECK</span><span class="live"><i></i> DEMO FEED</span></div>
+        <div class="hero-grid">
+          <div>
+            <h1>Mission<br><em>Control.</em></h1>
+            <p class="intro">Mehrere Opportunities. Eine Route. Der Optimizer baut aus dem Chaos eine machbare Mission.</p>
+          </div>
+          <div class="hero-stamp" aria-label="Demo status"><strong>OPERATION<br>DEMO-WELT</strong><span>NO LIVE DATA</span></div>
+        </div>
       </header>
 
       <section class="panel controls" aria-labelledby="controls-title">
-        <div>
-          <h2 id="controls-title">Optimierung starten</h2>
+        <div class="control-title">
+          <span class="panel-tag">TACTICAL INPUT</span>
+          <h2 id="controls-title">Einsatz konfigurieren</h2>
+          <p>Wähle den Auftragstyp und die Risikobereitschaft.</p>
         </div>
-        <label>Optimierungsmodus
+        <label>Priorität
           <select id="mode">
             <option value="MAX_REVENUE">Maximaler Umsatz</option>
             <option value="MAX_REVENUE_PER_HOUR">Umsatz pro Stunde</option>
@@ -34,10 +42,10 @@
             <option value="AGGRESSIVE">Aggressiv</option>
           </select>
         </label>
-        <button id="run" type="button">Missionen berechnen</button>
+        <button id="run" type="button"><span>ROUTE GENERIEREN</span><b>↗</b></button>
       </section>
 
-      <section id="status" class="status" role="status">Bereit für die Demo-Welt.</section>
+      <section class="status-bar" aria-live="polite"><span class="status-kicker">MISSION STATUS</span><span id="status" class="status" role="status">Bereit für die Demo-Welt.</span></section>
       <section id="results" class="results" aria-live="polite"></section>
     </main>
     <script src="/app.js" defer></script>
