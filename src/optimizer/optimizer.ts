@@ -44,11 +44,8 @@ export class RouteOptimizer {
           const vehicles = this.vehiclesToTry(world, candidate.state, opportunity);
           let accepted = false;
           for (const vehicle of vehicles) {
-            const result = transition(world, candidate.state, opportunity, routing, vehicle);
+            const result = transition(world, candidate.state, opportunity, routing, vehicle, this.config.transferBufferMinutes[normalized.riskProfile]);
             if (!result.rejection) {
-              const deltaRevenue = result.state.totalRevenueMinor - candidate.state.totalRevenueMinor;
-              const deltaCost = result.state.totalCostMinor - candidate.state.totalCostMinor;
-              if (normalized.excludeNegativeContribution && deltaRevenue <= deltaCost) continue;
               expanded.push({ state: result.state, sequence: [...candidate.sequence, opportunity.id] });
               accepted = true;
               break;
@@ -111,6 +108,7 @@ export class RouteOptimizer {
   private isFinalCandidate(candidate: Candidate, world: WorldState, preferences: MissionPreferences, mandatoryIds: string[]): boolean {
     if (preferences.maxStops !== undefined && candidate.sequence.length > preferences.maxStops) return false;
     if (mandatoryIds.some((id) => !candidate.sequence.includes(id))) return false;
+    if (preferences.excludeNegativeContribution && candidate.state.totalRevenueMinor <= candidate.state.totalCostMinor) return false;
     if (preferences.optimizationMode === "DESTINATION") {
       return Boolean(preferences.targetDestination && preferences.destinationDeadline && candidate.state.location.city === preferences.targetDestination.city && parseTime(candidate.state.currentTime) <= parseTime(preferences.destinationDeadline));
     }
@@ -132,10 +130,12 @@ export class RouteOptimizer {
     const result: Candidate[] = [];
     const seeds = this.dedupe(candidates).sort((a, b) => this.compareFinal(a, b, world, preferences)).slice(0, 8);
     for (const seed of seeds) {
-      const variants: string[][] = [];
-      if (seed.sequence.length > 1) for (let index = 0; index < seed.sequence.length; index += 1) variants.push(seed.sequence.filter((_, candidateIndex) => candidateIndex !== index));
+      const removeVariants: string[][] = [];
+      const replaceVariants: string[][] = [];
+      const swapVariants: string[][] = [];
+      if (seed.sequence.length > 1) for (let index = 0; index < seed.sequence.length; index += 1) removeVariants.push(seed.sequence.filter((_, candidateIndex) => candidateIndex !== index));
       for (let index = 0; index < seed.sequence.length; index += 1) {
-        for (const replacement of world.opportunities) if (!seed.sequence.includes(replacement.id)) variants.push(seed.sequence.map((id, candidateIndex) => candidateIndex === index ? replacement.id : id));
+        for (const replacement of world.opportunities) if (!seed.sequence.includes(replacement.id)) replaceVariants.push(seed.sequence.map((id, candidateIndex) => candidateIndex === index ? replacement.id : id));
       }
       for (let index = 0; index < seed.sequence.length; index += 1) for (let other = index + 1; other < seed.sequence.length; other += 1) {
         const swapped = [...seed.sequence];
@@ -144,17 +144,20 @@ export class RouteOptimizer {
         if (first === undefined || second === undefined) continue;
         swapped[index] = second;
         swapped[other] = first;
-        variants.push(swapped);
+        swapVariants.push(swapped);
       }
-      for (const sequence of variants.slice(0, 40)) {
-        const replayed = this.replay(world, sequence, routing);
+      // Keep all neighborhood types visible: replacement variants must not
+      // consume the complete budget before remove/swap can be evaluated.
+      const variants = [...removeVariants.slice(0, 10), ...replaceVariants.slice(0, 15), ...swapVariants.slice(0, 15)];
+      for (const sequence of variants) {
+        const replayed = this.replay(world, sequence, routing, this.config.transferBufferMinutes[preferences.riskProfile]);
         if (replayed) result.push(replayed);
       }
     }
     return result;
   }
 
-  private replay(world: WorldState, sequence: string[], routing: RoutingProvider): Candidate | undefined {
+  private replay(world: WorldState, sequence: string[], routing: RoutingProvider, transferBufferMinutes: number): Candidate | undefined {
     let state = initialSearchState(world);
     for (const id of sequence) {
       const opportunity = world.opportunities.find((item) => item.id === id);
@@ -162,7 +165,7 @@ export class RouteOptimizer {
       const vehicles = this.vehiclesToTry(world, state, opportunity);
       let next: SearchState | undefined;
       for (const vehicle of vehicles) {
-        const result = transition(world, state, opportunity, routing, vehicle);
+        const result = transition(world, state, opportunity, routing, vehicle, transferBufferMinutes);
         if (!result.rejection) { next = result.state; break; }
       }
       if (!next) return undefined;
@@ -174,9 +177,12 @@ export class RouteOptimizer {
   private destinationTransfer(world: WorldState, preferences: MissionPreferences, routing: RoutingProvider): Candidate | undefined {
     if (!preferences.targetDestination || !preferences.destinationDeadline) return undefined;
     const state = initialSearchState(world);
-    const route = routing.getRoutes({ origin: state.location, destination: preferences.targetDestination, departureTime: state.currentTime, transportMode: state.transportMode })[0];
-    if (!route || parseTime(route.arrivalTime) > parseTime(preferences.destinationDeadline)) return undefined;
-    const next: SearchState = { ...state, location: preferences.targetDestination, currentTime: route.arrivalTime, legs: [{ type: route.mode === "PUBLIC_TRANSPORT" ? "TRAIN" : "WALK", origin: state.location, destination: preferences.targetDestination, departureTime: route.departureTime, arrivalTime: route.arrivalTime, revenue: eur(0), cost: route.cost, distanceKm: route.distanceKm, durationMinutes: route.durationMinutes, confidence: route.confidence }], totalCostMinor: route.cost.amountMinor, emptyDistanceKm: route.distanceKm };
+    const latestArrival = Math.min(parseTime(preferences.destinationDeadline), parseTime(world.driver.availableUntil));
+    const routes = routing.getRoutes({ origin: state.location, destination: preferences.targetDestination, departureTime: state.currentTime, transportMode: state.transportMode })
+      .sort((a, b) => parseTime(a.arrivalTime) - parseTime(b.arrivalTime) || a.cost.amountMinor - b.cost.amountMinor || (a.connectionId ?? "").localeCompare(b.connectionId ?? ""));
+    const route = routes.find((candidate) => parseTime(candidate.arrivalTime) <= latestArrival);
+    if (!route) return undefined;
+    const next: SearchState = { ...state, location: preferences.targetDestination, currentTime: route.arrivalTime, legs: [{ type: route.mode === "PUBLIC_TRANSPORT" ? "TRAIN" : "WALK", transportMode: route.mode, origin: state.location, destination: preferences.targetDestination, departureTime: route.departureTime, arrivalTime: route.arrivalTime, connectionId: route.connectionId, revenue: eur(0), cost: route.cost, distanceKm: route.distanceKm, durationMinutes: route.durationMinutes, confidence: route.confidence }], totalCostMinor: route.cost.amountMinor, emptyDistanceKm: route.distanceKm };
     return { state: next, sequence: [] };
   }
 }

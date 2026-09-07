@@ -100,6 +100,7 @@ export interface Opportunity {
   revenue: Money;
   estimatedServiceDurationMinutes: number;
   cargoItems: CargoItem[];
+  passengerCount?: number;
   constraints: OpportunityConstraints;
   observedAt: string;
   lastVerifiedAt: string;
@@ -132,6 +133,7 @@ export type MissionLegType =
 
 export interface MissionLeg {
   type: MissionLegType;
+  transportMode: TransportMode;
   origin: Location;
   destination: Location;
   departureTime: string;
@@ -139,6 +141,8 @@ export interface MissionLeg {
   opportunityId?: string;
   bookingId?: string;
   vehicleId?: string;
+  connectionId?: string;
+  cargoItems?: CargoItem[];
   revenue: Money;
   cost: Money;
   distanceKm: number;

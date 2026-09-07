@@ -10,7 +10,7 @@ Dieser PoC beweist die Kernlogik für mehrstufige Missionen eines einzelnen selb
 - `src/optimizer`: Hard-Constraint-Prüfung, Transport-/Cargo-Regeln, Zustandsübergänge, Beam Search, Lookahead, Local Search und Replanning.
 - `src/scoring`: nachvollziehbare Scoring-Modi und ScoreBreakdown.
 
-Geld wird ausschließlich als Ganzzahl in Cent gespeichert. Fahrer und Fahrzeuge sind getrennte Ressourcen. Ein Fahrzeug darf nur an seinem tatsächlichen Standort verwendet werden; Cargo wird gegen das aktuelle Transportmittel geprüft.
+Geld wird ausschließlich als Ganzzahl in Cent gespeichert. Fahrer und Fahrzeuge sind getrennte Ressourcen. Ein Fahrzeug darf nur an seinem tatsächlichen Standort verwendet werden; Cargo und Passenger-Aufträge werden gegen Transportmittel, Cargo-Kapazität und verfügbare Sitze geprüft.
 
 ## Optimierungsansatz
 
@@ -62,7 +62,9 @@ npm run benchmark
 
 - Routing ist statisch und nutzt keine echte Fahrplan-, Karten- oder Verkehrsdatenquelle.
 - Cargo-Machbarkeit ist eine konservative Size-Class-Regel, kein 3D-Bin-Packing.
+- Cargo wird innerhalb einer Opportunity atomar zwischen Pickup und Delivery geführt; neue Opportunities werden in diesem Abschnitt nicht eingeschoben. Transport-Legs tragen die Cargo-Items als Audit-Information, und diese Strecke zählt nicht als Leerfahrt.
 - Local Search ist absichtlich klein gehalten und kein vollständiges LNS/CP-SAT-Verfahren.
+- `excludeNegativeContribution` bewertet den kumulierten Missionsüberschuss; negative Zwischenlegs bleiben für profitable Lookahead-Ketten zulässig.
 - Kosten und Fahrzeiten sind Fixture-Schätzungen.
 
 Neue Fixtures können in `src/fixtures/world.ts` über die vorhandenen Helfer `opportunity`, `cargo` und `createBaseWorld` ergänzt werden. Für einen neuen Routing-Provider muss nur `RoutingProvider` implementiert werden.
