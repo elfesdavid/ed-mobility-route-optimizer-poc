@@ -173,6 +173,16 @@ describe("Route optimizer proof of concept", () => {
     expect(result.warnings[0]?.text).toContain("Pickup-Zeitfenster");
   });
 
+  it("AC – treats leg departure as in progress and leg arrival as completed", () => {
+    const world = createBaseWorld();
+    const active: Mission = { id: "boundary", driverId: world.driver.id, startTime: world.driver.availableFrom, startLocation: LOCATIONS.DUSSELDORF, optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL", legs: [{ type: "TRAIN", origin: LOCATIONS.DUSSELDORF, destination: LOCATIONS.HAMBURG, departureTime: "2026-09-07T06:00:00.000Z", arrivalTime: "2026-09-07T10:00:00.000Z", revenue: eur(0), cost: eur(2990), distanceKm: 390, durationMinutes: 240, confidence: "HIGH" }], scoreBreakdown: { totalRevenue: eur(0), estimatedTravelCosts: eur(2990), estimatedOtherCosts: eur(0), estimatedSurplus: eur(-2990), missionDurationMinutes: 240, revenuePerHour: 0, emptyDistanceKm: 390, riskPenalty: 0, softConstraintPenalty: 0, finalScore: -2990 }, explanationItems: [] };
+    const atDeparture = replan(active, world, "2026-09-07T06:00:00.000Z", { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" });
+    expect(atDeparture.warnings[0]?.text).toContain("REPLAN_BLOCKED_IN_PROGRESS");
+    const atArrival = replan(active, world, "2026-09-07T10:00:00.000Z", { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" });
+    expect(atArrival.warnings).toHaveLength(0);
+    expect(atArrival.preservedLegs).toHaveLength(1);
+  });
+
   it("P – records the selected feasible connection when a slower alternative exists", () => {
     const world = createBaseWorld();
     const firstConnection = world.transitConnections.find((connection) => connection.id === "dus-col");

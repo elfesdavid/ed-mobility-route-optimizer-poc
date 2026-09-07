@@ -130,10 +130,12 @@ export class RouteOptimizer {
     const result: Candidate[] = [];
     const seeds = this.dedupe(candidates).sort((a, b) => this.compareFinal(a, b, world, preferences)).slice(0, 8);
     for (const seed of seeds) {
-      const variants: string[][] = [];
-      if (seed.sequence.length > 1) for (let index = 0; index < seed.sequence.length; index += 1) variants.push(seed.sequence.filter((_, candidateIndex) => candidateIndex !== index));
+      const removeVariants: string[][] = [];
+      const replaceVariants: string[][] = [];
+      const swapVariants: string[][] = [];
+      if (seed.sequence.length > 1) for (let index = 0; index < seed.sequence.length; index += 1) removeVariants.push(seed.sequence.filter((_, candidateIndex) => candidateIndex !== index));
       for (let index = 0; index < seed.sequence.length; index += 1) {
-        for (const replacement of world.opportunities) if (!seed.sequence.includes(replacement.id)) variants.push(seed.sequence.map((id, candidateIndex) => candidateIndex === index ? replacement.id : id));
+        for (const replacement of world.opportunities) if (!seed.sequence.includes(replacement.id)) replaceVariants.push(seed.sequence.map((id, candidateIndex) => candidateIndex === index ? replacement.id : id));
       }
       for (let index = 0; index < seed.sequence.length; index += 1) for (let other = index + 1; other < seed.sequence.length; other += 1) {
         const swapped = [...seed.sequence];
@@ -142,9 +144,12 @@ export class RouteOptimizer {
         if (first === undefined || second === undefined) continue;
         swapped[index] = second;
         swapped[other] = first;
-        variants.push(swapped);
+        swapVariants.push(swapped);
       }
-      for (const sequence of variants.slice(0, 40)) {
+      // Keep all neighborhood types visible: replacement variants must not
+      // consume the complete budget before remove/swap can be evaluated.
+      const variants = [...removeVariants.slice(0, 10), ...replaceVariants.slice(0, 15), ...swapVariants.slice(0, 15)];
+      for (const sequence of variants) {
         const replayed = this.replay(world, sequence, routing, this.config.transferBufferMinutes[preferences.riskProfile]);
         if (replayed) result.push(replayed);
       }

@@ -28,11 +28,11 @@ Der aktuelle PoC berechnet `estimatedOtherCosts` und `softConstraintPenalty` noc
 
 ## Fixture-Routing
 
-Transitverbindungen mit festen Abfahrts- oder Ankunftszeiten werden nur verwendet, wenn ihre Abfahrt noch erreichbar ist. Eine verpasste Verbindung wird nicht künstlich auf die angefragte Abfahrtszeit verschoben. Verbindungen ohne feste Zeiten bleiben deterministische Fixture-Verbindungen und starten zum angefragten Zeitpunkt.
+Transitverbindungen mit festen Abfahrts- oder Ankunftszeiten werden nur verwendet, wenn ihre Abfahrt noch erreichbar ist. `RouteRequest.departureTime` ist dabei die früheste zulässige Abfahrt: Eine Verbindung mit einer früheren Abfahrt gilt als verpasst und wird verworfen. Eine verpasste Verbindung wird nicht künstlich auf die angefragte Abfahrtszeit verschoben. Verbindungen ohne feste Zeiten bleiben deterministische Fixture-Verbindungen und starten zum angefragten Zeitpunkt.
 
 ## Local Search
 
-Die besten Beam-Kandidaten werden begrenzt mit Remove, Replace und Swap erneut abgespielt. Jede Variante durchläuft dieselben Feasibility-Regeln wie die Beam Search. Dadurch kann eine gute Reihenfolge lokal verbessert werden, ohne eine zweite, abweichende Regelimplementierung zu pflegen.
+Die besten Beam-Kandidaten werden begrenzt mit Remove, Replace und Swap erneut abgespielt. Der Varianten-Budget ist pro Typ auf 10 Remove-, 15 Replace- und 15 Swap-Varianten verteilt, damit Replace nicht alle Swap-Versuche verdrängt. Jede Variante durchläuft dieselben Feasibility-Regeln wie die Beam Search. Dadurch kann eine gute Reihenfolge lokal verbessert werden, ohne eine zweite, abweichende Regelimplementierung zu pflegen.
 
 ## Replanning
 
