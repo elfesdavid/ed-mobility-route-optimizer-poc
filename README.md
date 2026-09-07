@@ -58,6 +58,16 @@ Die deterministischen Benchmark-Szenarien für 50, 100, 250 und 500 Opportunitie
 npm run benchmark
 ```
 
+## Lokale Browser-Demo
+
+Die kleine lokale Demo-Oberfläche verwendet weiterhin ausschließlich die Demo-Fixtures und den bestehenden Optimizer. Es gibt noch kein Backend, keine Datenbank und keine externe Routing-API.
+
+```bash
+npm run ui
+```
+
+Danach im Browser [http://127.0.0.1:3000](http://127.0.0.1:3000) öffnen. Die Oberfläche zeigt bis zu drei Missionsalternativen und erlaubt die Auswahl von Optimierungsmodus und Risikoprofil.
+
 ## Bekannte Vereinfachungen
 
 - Routing ist statisch und nutzt keine echte Fahrplan-, Karten- oder Verkehrsdatenquelle.
