@@ -8,7 +8,8 @@
     "test": "./node_modules/.bin/vitest run",
     "test:watch": "./node_modules/.bin/vitest",
     "demo": "./node_modules/.bin/tsx src/demo.ts",
-    "benchmark": "./node_modules/.bin/tsx src/benchmark.ts"
+    "benchmark": "./node_modules/.bin/tsx src/benchmark.ts",
+    "ui": "./node_modules/.bin/tsx src/ui-server.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
