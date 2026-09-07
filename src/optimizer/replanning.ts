@@ -39,10 +39,16 @@ export function replan(activeMission: Mission, updatedWorld: WorldState, current
   const completedOpportunityIds = new Set(preservedLegs.flatMap((leg) => leg.opportunityId ? [leg.opportunityId] : []));
   const futureOpportunities = new Set(updatedWorld.opportunities.map((opportunity) => opportunity.id));
   const warnings: ExplanationItem[] = [];
+  const warnedBookingIds = new Set<string>();
   for (const booking of updatedWorld.confirmedBookings.filter((item) => item.status === "CONFIRMED" && item.driverId === updatedWorld.driver.id)) {
     const opportunity = updatedWorld.opportunities.find((item) => item.id === booking.opportunityId);
-    if (!opportunity || !futureOpportunities.has(booking.opportunityId)) {
-      warnings.push({ kind: "NEGATIVE", text: `CONFIRMED_BOOKING_AT_RISK: Auftrag ${booking.opportunityId} ist im aktualisierten WorldState nicht mehr verfügbar.`, opportunityId: booking.opportunityId });
+    const pickupExpired = opportunity ? parseTime(opportunity.pickupWindow.latest) < parseTime(currentTime) : false;
+    if (!opportunity || !futureOpportunities.has(booking.opportunityId) || opportunity.status !== "AVAILABLE" || pickupExpired) {
+      const reason = !opportunity || opportunity.status !== "AVAILABLE"
+        ? "im aktualisierten WorldState nicht mehr verfügbar"
+        : `das Pickup-Zeitfenster endete bereits um ${opportunity.pickupWindow.latest}`;
+      warnings.push({ kind: "NEGATIVE", text: `CONFIRMED_BOOKING_AT_RISK: Auftrag ${booking.opportunityId} ist ${reason}.`, opportunityId: booking.opportunityId });
+      warnedBookingIds.add(booking.opportunityId);
     }
   }
   const replanningWorld: WorldState = structuredClone({
@@ -53,7 +59,7 @@ export function replan(activeMission: Mission, updatedWorld: WorldState, current
   });
   const missions = optimizer.optimize(replanningWorld, preferences);
   for (const booking of updatedWorld.confirmedBookings.filter((item) => item.status === "CONFIRMED" && item.driverId === updatedWorld.driver.id)) {
-    if (!missions.some((mission) => mission.legs.some((leg) => leg.opportunityId === booking.opportunityId))) {
+    if (!warnedBookingIds.has(booking.opportunityId) && !missions.some((mission) => mission.legs.some((leg) => leg.opportunityId === booking.opportunityId))) {
       warnings.push({ kind: "NEGATIVE", text: `CONFIRMED_BOOKING_AT_RISK: Auftrag ${booking.opportunityId} ist ab ${currentTime} nicht mehr erreichbar.`, opportunityId: booking.opportunityId });
     }
   }

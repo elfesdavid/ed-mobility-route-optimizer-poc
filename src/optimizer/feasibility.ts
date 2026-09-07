@@ -28,6 +28,15 @@ export function cargoFitsTransport(items: CargoItem[], transportMode: TransportM
     && totalVolume <= profileVolume;
 }
 
+export function passengerFitsTransport(transportMode: TransportMode, vehicle: Vehicle | undefined, opportunity: Opportunity): boolean {
+  if (opportunity.type !== "PASSENGER") return true;
+  const passengerCount = opportunity.passengerCount ?? 1;
+  if (!Number.isInteger(passengerCount) || passengerCount <= 0) return false;
+  if (transportMode === "TAXI" || transportMode === "RIDESHARE") return true;
+  if (transportMode !== "OWN_VEHICLE" && transportMode !== "CUSTOMER_VEHICLE") return false;
+  return Boolean(vehicle && vehicle.seatsAvailable >= passengerCount);
+}
+
 export function vehicleCanBeUsed(transportMode: TransportMode, currentLocation: Location, vehicle: Vehicle | undefined, opportunity: Opportunity, currentVehicleLocation?: Location): string | undefined {
   if (opportunity.constraints.requiredVehicleType && vehicle?.vehicleType !== opportunity.constraints.requiredVehicleType) return "Benötigter Fahrzeugtyp ist nicht verfügbar.";
   if (transportMode !== "OWN_VEHICLE" && transportMode !== "CUSTOMER_VEHICLE" && opportunity.type !== "VEHICLE_TRANSFER") return undefined;
@@ -55,5 +64,6 @@ export function checkOpportunity(world: WorldState, opportunity: Opportunity, ro
   const vehicleProblem = vehicleCanBeUsed(transportMode, currentLocation, vehicle, opportunity, currentVehicleLocation);
   if (vehicleProblem) return { opportunityId: opportunity.id, reason: vehicleProblem };
   if (!cargoFitsTransport(opportunity.cargoItems, transportMode, vehicle, opportunity)) return { opportunityId: opportunity.id, reason: "Cargo passt nicht zum aktuellen Transportmittel oder Fahrzeug." };
+  if (!passengerFitsTransport(transportMode, vehicle, opportunity)) return { opportunityId: opportunity.id, reason: "Passagierkapazität oder Transportmittel reicht nicht aus." };
   return undefined;
 }

@@ -100,6 +100,7 @@ export interface Opportunity {
   revenue: Money;
   estimatedServiceDurationMinutes: number;
   cargoItems: CargoItem[];
+  passengerCount?: number;
   constraints: OpportunityConstraints;
   observedAt: string;
   lastVerifiedAt: string;

@@ -46,9 +46,6 @@ export class RouteOptimizer {
           for (const vehicle of vehicles) {
             const result = transition(world, candidate.state, opportunity, routing, vehicle, this.config.transferBufferMinutes[normalized.riskProfile]);
             if (!result.rejection) {
-              const deltaRevenue = result.state.totalRevenueMinor - candidate.state.totalRevenueMinor;
-              const deltaCost = result.state.totalCostMinor - candidate.state.totalCostMinor;
-              if (normalized.excludeNegativeContribution && deltaRevenue <= deltaCost) continue;
               expanded.push({ state: result.state, sequence: [...candidate.sequence, opportunity.id] });
               accepted = true;
               break;
@@ -111,6 +108,7 @@ export class RouteOptimizer {
   private isFinalCandidate(candidate: Candidate, world: WorldState, preferences: MissionPreferences, mandatoryIds: string[]): boolean {
     if (preferences.maxStops !== undefined && candidate.sequence.length > preferences.maxStops) return false;
     if (mandatoryIds.some((id) => !candidate.sequence.includes(id))) return false;
+    if (preferences.excludeNegativeContribution && candidate.state.totalRevenueMinor <= candidate.state.totalCostMinor) return false;
     if (preferences.optimizationMode === "DESTINATION") {
       return Boolean(preferences.targetDestination && preferences.destinationDeadline && candidate.state.location.city === preferences.targetDestination.city && parseTime(candidate.state.currentTime) <= parseTime(preferences.destinationDeadline));
     }

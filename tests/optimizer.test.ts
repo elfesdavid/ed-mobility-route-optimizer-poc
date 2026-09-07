@@ -162,6 +162,17 @@ describe("Route optimizer proof of concept", () => {
     expect(result.warnings[0]?.text).toContain("REPLAN_BLOCKED_IN_PROGRESS");
   });
 
+  it("AB – warns early when a confirmed pickup window has already expired", () => {
+    const world = createBaseWorld();
+    const expired = opportunity("expired-confirmed", "DIRECT_ORDER", "Abgelaufener bestätigter Auftrag", "HAMBURG", "BREMEN", 10000, "2026-09-07T06:00:00.000Z", "2026-09-07T10:00:00.000Z", "2026-09-07T11:00:00.000Z", "2026-09-07T18:00:00.000Z", 10, [cargo("Paket", "TINY", 1)]);
+    world.opportunities = [expired];
+    world.confirmedBookings = [{ id: "expired-booking", opportunityId: expired.id, driverId: world.driver.id, status: "CONFIRMED", bookedAt: world.snapshotAt }];
+    const active: Mission = { id: "completed-leg", driverId: world.driver.id, startTime: world.driver.availableFrom, startLocation: LOCATIONS.DUSSELDORF, optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL", legs: [{ type: "TRAIN", origin: LOCATIONS.DUSSELDORF, destination: LOCATIONS.HAMBURG, departureTime: "2026-09-07T06:00:00.000Z", arrivalTime: "2026-09-07T10:30:00.000Z", revenue: eur(0), cost: eur(2990), distanceKm: 390, durationMinutes: 270, confidence: "HIGH" }], scoreBreakdown: { totalRevenue: eur(0), estimatedTravelCosts: eur(2990), estimatedOtherCosts: eur(0), estimatedSurplus: eur(-2990), missionDurationMinutes: 270, revenuePerHour: 0, emptyDistanceKm: 390, riskPenalty: 0, softConstraintPenalty: 0, finalScore: -2990 }, explanationItems: [] };
+    const result = replan(active, world, "2026-09-07T11:00:00.000Z", { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" });
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]?.text).toContain("Pickup-Zeitfenster");
+  });
+
   it("P – records the selected feasible connection when a slower alternative exists", () => {
     const world = createBaseWorld();
     const firstConnection = world.transitConnections.find((connection) => connection.id === "dus-col");
@@ -265,5 +276,32 @@ describe("Route optimizer proof of concept", () => {
     expect(mission?.legs.some((leg) => leg.cargoItems?.some((item) => item.description === "Paket"))).toBe(true);
     expect(mission?.scoreBreakdown.emptyDistanceKm).toBe(0);
     expect(scoreLegs(mission!.legs, world.driver.availableFrom, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" }, DEFAULT_CONFIG).emptyDistanceKm).toBe(0);
+  });
+
+  it("Z – keeps a negative positioning leg when the complete lookahead chain is profitable", () => {
+    const world = createBaseWorld();
+    world.driver.currentTransportMode = "PUBLIC_TRANSPORT";
+    const positioning = opportunity("positioning", "DIRECT_ORDER", "Positionierung Düsseldorf → Hamburg", "DUSSELDORF", "HAMBURG", 1000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", 10, [cargo("Paket", "TINY", 1)]);
+    const followUp = opportunity("profitable-follow-up", "DIRECT_ORDER", "Folgeauftrag Hamburg → Bremen", "HAMBURG", "BREMEN", 20000, "2026-09-07T10:00:00.000Z", "2026-09-07T16:00:00.000Z", "2026-09-07T12:00:00.000Z", "2026-09-07T20:00:00.000Z", 10, [cargo("Paket", "TINY", 1)]);
+    world.opportunities = [positioning, followUp];
+    const mission = optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL", lookaheadDepth: 2, maxStops: 2, topN: 1, excludeNegativeContribution: true })[0];
+    expect(mission).toBeDefined();
+    expect([...new Set(mission?.legs.flatMap((leg) => leg.opportunityId ? [leg.opportunityId] : []))]).toEqual(["positioning", "profitable-follow-up"]);
+    expect(mission?.scoreBreakdown.totalRevenue.amountMinor).toBe(21000);
+
+    world.opportunities = [positioning];
+    expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL", excludeNegativeContribution: true })).toHaveLength(0);
+  });
+
+  it("AA – enforces passenger capacity for vehicle transport", () => {
+    const world = createBaseWorld();
+    world.driver.currentTransportMode = "OWN_VEHICLE";
+    world.driver.currentVehicleId = "vehicle-mercedes-a";
+    const passenger = opportunity("passenger-job", "PASSENGER", "Fahrgast Düsseldorf → Köln", "DUSSELDORF", "COLOGNE", 12000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T12:00:00.000Z", 10);
+    passenger.passengerCount = 4;
+    world.opportunities = [passenger];
+    expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })).toHaveLength(1);
+    passenger.passengerCount = 5;
+    expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })).toHaveLength(0);
   });
 });
