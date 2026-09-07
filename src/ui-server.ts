@@ -4,13 +4,15 @@ import { join } from "node:path";
 import { createDemoWorld } from "./fixtures/world.js";
 import { LOCATIONS } from "./fixtures/locations.js";
 import { RouteOptimizer } from "./optimizer/optimizer.js";
-import type { OptimizationMode, RiskProfile } from "./domain/types.js";
+import type { OptimizationMode, RiskProfile, TransportMode } from "./domain/types.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const projectRoot = process.cwd();
 const optimizer = new RouteOptimizer();
 const modes: OptimizationMode[] = ["MAX_REVENUE", "MAX_REVENUE_PER_HOUR", "MAX_ESTIMATED_SURPLUS", "BALANCED", "DESTINATION"];
 const risks: RiskProfile[] = ["SAFE", "NORMAL", "AGGRESSIVE"];
+const transportModes: TransportMode[] = ["WALKING", "PUBLIC_TRANSPORT", "OWN_VEHICLE", "TAXI"];
+const locationKeys = Object.keys(LOCATIONS) as Array<keyof typeof LOCATIONS>;
 
 function send(response: import("node:http").ServerResponse, status: number, contentType: string, body: string): void {
   response.writeHead(status, { "content-type": contentType, "cache-control": "no-store" });
@@ -20,15 +22,28 @@ function send(response: import("node:http").ServerResponse, status: number, cont
 function optimizeDemo(url: URL): string {
   const requestedMode = url.searchParams.get("mode") as OptimizationMode | null;
   const requestedRisk = url.searchParams.get("risk") as RiskProfile | null;
+  const requestedStart = url.searchParams.get("start") as keyof typeof LOCATIONS | null;
+  const requestedTransport = url.searchParams.get("transport") as TransportMode | null;
   const optimizationMode = requestedMode && modes.includes(requestedMode) ? requestedMode : "MAX_REVENUE";
   const riskProfile = requestedRisk && risks.includes(requestedRisk) ? requestedRisk : "NORMAL";
+  const start = requestedStart && locationKeys.includes(requestedStart) ? requestedStart : "DUSSELDORF";
+  const transportMode = requestedTransport && transportModes.includes(requestedTransport) ? requestedTransport : "WALKING";
+  const world = createDemoWorld();
+  world.driver.currentLocation = LOCATIONS[start];
+  world.driver.currentTransportMode = transportMode;
+  if (transportMode === "OWN_VEHICLE") {
+    world.driver.currentVehicleId = "vehicle-mercedes-a";
+    world.vehicles[0].currentLocation = LOCATIONS[start];
+  } else {
+    world.driver.currentVehicleId = undefined;
+  }
   const preferences = {
     optimizationMode,
     riskProfile,
     topN: 3,
     ...(optimizationMode === "DESTINATION" ? { targetDestination: LOCATIONS.BERLIN, destinationDeadline: "2026-09-07T22:00:00.000Z" } : {}),
   };
-  return JSON.stringify({ generatedAt: new Date().toISOString(), demo: true, preferences, missions: optimizer.optimize(createDemoWorld(), preferences) });
+  return JSON.stringify({ generatedAt: new Date().toISOString(), demo: true, scenario: { start, transportMode }, preferences, missions: optimizer.optimize(world, preferences) });
 }
 
 const server = createServer((request, response) => {

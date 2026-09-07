@@ -1,5 +1,7 @@
 const mode = document.querySelector("#mode");
 const risk = document.querySelector("#risk");
+const start = document.querySelector("#start");
+const transport = document.querySelector("#transport");
 const run = document.querySelector("#run");
 const status = document.querySelector("#status");
 const results = document.querySelector("#results");
@@ -8,6 +10,8 @@ const euro = (money) => new Intl.NumberFormat("de-DE", { style: "currency", curr
 const city = (location) => location?.city ?? "—";
 const time = (iso) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 const modeLabel = { MAX_REVENUE: "Maximaler Umsatz", MAX_REVENUE_PER_HOUR: "Umsatz pro Stunde", MAX_ESTIMATED_SURPLUS: "Geschätzter Überschuss", BALANCED: "Ausgewogen", DESTINATION: "Zielmodus" };
+const locationLabel = { DUSSELDORF: "Düsseldorf", COLOGNE: "Köln", HAMBURG: "Hamburg", BREMEN: "Bremen", BERLIN: "Berlin" };
+const transportLabel = { WALKING: "Zu Fuß", PUBLIC_TRANSPORT: "ÖPNV", OWN_VEHICLE: "Eigenes Fahrzeug", TAXI: "Taxi" };
 
 function renderMission(mission, index) {
   const score = mission.scoreBreakdown;
@@ -32,10 +36,10 @@ async function calculate() {
   run.disabled = true;
   status.textContent = "Missionen werden berechnet …";
   try {
-    const response = await fetch(`/api/optimize?mode=${encodeURIComponent(mode.value)}&risk=${encodeURIComponent(risk.value)}`);
+    const response = await fetch(`/api/optimize?mode=${encodeURIComponent(mode.value)}&risk=${encodeURIComponent(risk.value)}&start=${encodeURIComponent(start.value)}&transport=${encodeURIComponent(transport.value)}`);
     if (!response.ok) throw new Error("Die Demo konnte nicht berechnen.");
     const data = await response.json();
-    status.textContent = `${data.missions.length} Missionsalternative${data.missions.length === 1 ? "" : "n"} · ${modeLabel[data.preferences.optimizationMode]} · ${data.preferences.riskProfile}`;
+    status.textContent = `${data.missions.length} Route${data.missions.length === 1 ? "" : "n"} · ${locationLabel[data.scenario.start]} · ${transportLabel[data.scenario.transportMode]} · ${modeLabel[data.preferences.optimizationMode]}`;
     results.innerHTML = data.missions.length ? data.missions.map(renderMission).join("") : `<div class="empty"><h2>Keine machbare Mission</h2><p>Mit den aktuellen Hard Constraints wurde keine passende Route gefunden.</p></div>`;
   } catch (error) {
     status.textContent = error instanceof Error ? error.message : "Unbekannter Fehler";

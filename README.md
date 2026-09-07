@@ -66,7 +66,7 @@ Die kleine lokale Demo-Oberfläche verwendet weiterhin ausschließlich die Demo-
 npm run ui
 ```
 
-Danach im Browser [http://127.0.0.1:3000](http://127.0.0.1:3000) öffnen. Die Oberfläche zeigt bis zu drei Missionsalternativen und erlaubt die Auswahl von Optimierungsmodus und Risikoprofil.
+Danach im Browser [http://127.0.0.1:3000](http://127.0.0.1:3000) öffnen. Die Oberfläche zeigt bis zu drei Missionsalternativen und erlaubt die Auswahl von Optimierungsmodus, Risikoprofil, Startort und Transportmittel. Die Szenario-Auswahl bleibt eine lokale Demo-Annahme und speichert noch keine echten Fahrerdaten.
 
 ## Bekannte Vereinfachungen
 
