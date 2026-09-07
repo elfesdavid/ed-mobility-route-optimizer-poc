@@ -20,7 +20,7 @@ function locationAtCurrentTime(mission: Mission, currentTime: string): Mission["
 }
 
 function transportModeFromLeg(leg: Mission["legs"][number] | undefined): WorldState["driver"]["currentTransportMode"] {
-  return leg?.transportMode ?? "WALKING";
+  return leg?.continuationTransportMode ?? leg?.transportMode ?? "WALKING";
 }
 
 export function replan(activeMission: Mission, updatedWorld: WorldState, currentTime: string, preferences: MissionPreferences, optimizer = new RouteOptimizer()): ReplanResult {

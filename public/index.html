@@ -10,19 +10,19 @@
   <body>
     <main class="shell">
       <header class="hero">
-        <div class="brandline"><span class="brand-mark">ED</span><span>ED MOBILITY // COMMAND DECK</span><span class="live"><i></i> DEMO FEED</span></div>
+        <div class="brandline"><span class="brand-mark">ED</span><span>ED MOBILITY // EINSATZZENTRALE</span><span class="live"><i></i> DEMO-DATEN</span></div>
         <div class="hero-grid">
           <div>
-            <h1>Mission<br><em>Control.</em></h1>
-            <p class="intro">Mehrere Opportunities. Eine Route. Der Optimizer baut aus dem Chaos eine machbare Mission.</p>
+            <h1>Mission<br><em>Kontrolle.</em></h1>
+            <p class="intro">Mehrere Aufträge. Eine Route. Der Optimizer baut aus dem Chaos eine machbare Mission.</p>
           </div>
-          <div class="hero-stamp" aria-label="Demo status"><strong>OPERATION<br>DEMO-WELT</strong><span>NO LIVE DATA</span></div>
+          <div class="hero-stamp" aria-label="Demo-Status"><strong>EINSATZ<br>DEMO-WELT</strong><span>KEINE LIVE-DATEN</span></div>
         </div>
       </header>
 
       <section class="panel controls" aria-labelledby="controls-title">
         <div class="control-title">
-          <span class="panel-tag">TACTICAL INPUT</span>
+          <span class="panel-tag">EINGABE</span>
           <h2 id="controls-title">Einsatz konfigurieren</h2>
           <p>Wähle den Auftragstyp und die Risikobereitschaft.</p>
         </div>
@@ -42,10 +42,27 @@
             <option value="AGGRESSIVE">Aggressiv</option>
           </select>
         </label>
-        <button id="run" type="button"><span>ROUTE GENERIEREN</span><b>↗</b></button>
+        <label>Startort
+          <select id="start">
+            <option value="DUSSELDORF" selected>Düsseldorf</option>
+            <option value="COLOGNE">Köln</option>
+            <option value="HAMBURG">Hamburg</option>
+            <option value="BREMEN">Bremen</option>
+            <option value="BERLIN">Berlin</option>
+          </select>
+        </label>
+        <label>Transportmittel
+          <select id="transport">
+            <option value="WALKING" selected>Zu Fuß</option>
+            <option value="PUBLIC_TRANSPORT">ÖPNV</option>
+            <option value="OWN_VEHICLE">Eigenes Fahrzeug</option>
+            <option value="TAXI">Taxi</option>
+          </select>
+        </label>
+        <button id="run" type="button"><span>ROUTE BERECHNEN</span><b>↗</b></button>
       </section>
 
-      <section class="status-bar" aria-live="polite"><span class="status-kicker">MISSION STATUS</span><span id="status" class="status" role="status">Bereit für die Demo-Welt.</span></section>
+      <section class="status-bar" aria-live="polite"><span class="status-kicker">MISSIONSSTATUS</span><span id="status" class="status" role="status">Bereit für die Demo-Welt.</span></section>
       <section id="results" class="results" aria-live="polite"></section>
     </main>
     <script src="/app.js" defer></script>

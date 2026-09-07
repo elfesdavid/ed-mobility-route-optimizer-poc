@@ -280,6 +280,16 @@ describe("Route optimizer proof of concept", () => {
     expect(result.missions[0]?.legs.some((leg) => leg.opportunityId === "own-replan-follow-up")).toBe(true);
   });
 
+  it("AF – distinguishes customer-vehicle service from the transport mode after delivery", () => {
+    const world = createBaseWorld();
+    const vehicleTransfer = opportunity("vehicle-transfer-mode", "VEHICLE_TRANSFER", "Düsseldorf → Köln", "DUSSELDORF", "COLOGNE", 15000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T14:00:00.000Z", 30);
+    const result = transition(world, initialSearchState(world), vehicleTransfer, new FixtureRoutingProvider(world), world.vehicles[0]);
+    expect(result.rejection).toBeUndefined();
+    const serviceLeg = result.state.legs.find((leg) => leg.opportunityId === vehicleTransfer.id);
+    expect(serviceLeg?.transportMode).toBe("CUSTOMER_VEHICLE");
+    expect(serviceLeg?.continuationTransportMode).toBe("WALKING");
+  });
+
   it("X – does not revive a missed transit connection", () => {
     const world = createBaseWorld();
     world.driver.currentTransportMode = "PUBLIC_TRANSPORT";
