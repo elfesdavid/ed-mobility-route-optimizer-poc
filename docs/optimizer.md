@@ -2,13 +2,13 @@
 
 ## Hard und Soft Constraints
 
-Hard Constraints werden vor dem Weiterführen eines Zustands geprüft: Opportunity-Status, Pickup- und Delivery-Zeitfenster, Fahrer-Verfügbarkeit, tatsächlicher Fahrzeugstandort, Fahrzeugverfügbarkeit, Cargo-Kapazität und bestätigte Bookings. Ein Ergebnis mit einem verletzten Hard Constraint wird nicht zurückgegeben.
+Hard Constraints werden vor dem Weiterführen eines Zustands geprüft: Opportunity-Status, Pickup- und Delivery-Zeitfenster, Fahrer-Verfügbarkeit, tatsächlicher Fahrzeugstandort, Fahrzeugverfügbarkeit, Cargo-Kapazität, Passenger-Sitzplätze und bestätigte Bookings. Ein Ergebnis mit einem verletzten Hard Constraint wird nicht zurückgegeben.
 
-Risikoprofile konfigurieren den Transferpuffer und die Risikobewertung. Der Puffer wirkt in V1 als erklärbarer Risikofaktor; selbst `AGGRESSIVE` darf keine objektiv unmögliche Zeit akzeptieren. Komfort, bevorzugte Endzeit und zusätzliche Leerfahrt sind für die nächste Iteration als Soft-Penalties vorgesehen.
+Risikoprofile konfigurieren den Transferpuffer und die Risikobewertung. Der Puffer wird als harte Sicherheitsreserve vor Pickup- und Delivery-Deadlines berücksichtigt: `SAFE` reserviert 30 Minuten, `NORMAL` 15 Minuten und `AGGRESSIVE` 5 Minuten. Selbst `AGGRESSIVE` darf keine objektiv unmögliche Zeit akzeptieren. Komfort, bevorzugte Endzeit und zusätzliche Leerfahrt sind für die nächste Iteration als Soft-Penalties vorgesehen.
 
 ## Zustandsübergänge
 
-Ein `SearchState` ist ein Wertobjekt: aktuelle Location, aktuelle Zeit, Transportmodus, Fahrzeug, Opportunity-Sequenz, Legs und kumulierte Kennzahlen. Eine Fahrzeugüberführung endet am Ziel im Modus `WALKING`, weil das Kundenfahrzeug dort abgegeben wurde. Cargo wird für die gesamte Aktion gegen die aktuelle Kapazität geprüft. Der übergebene `WorldState` wird nie verändert.
+Ein `SearchState` ist ein Wertobjekt: aktuelle Location, aktuelle Zeit, Transportmodus, Fahrzeug, dessen aktuelle Search-State-Position, Opportunity-Sequenz, Legs und kumulierte Kennzahlen. Eigene Fahrzeuge bewegen sich bei `OWN_VEHICLE`-Legs mit dem Fahrer; der unveränderte `WorldState` bleibt nur die Ausgangsbasis. Eine Fahrzeugüberführung endet am Ziel im Modus `WALKING`, weil das Kundenfahrzeug dort abgegeben wurde. Cargo wird für die gesamte Aktion gegen die aktuelle Kapazität geprüft, während des Transports als `carriedCargo` geführt und auf den Transport-Legs sichtbar gemacht. Die Cargo-Strecke zählt dadurch nicht als Leerfahrt. V1 behandelt eine Cargo-Opportunity weiterhin atomar: Zwischen Pickup und Delivery werden keine neuen Opportunities eingeschoben. Der übergebene `WorldState` wird nie verändert.
 
 ## Beam Search und Lookahead
 
@@ -20,13 +20,23 @@ Kandidaten mit bestätigten Bookings erhalten beim partiellen Ranking einen star
 
 `ScoreBreakdown` enthält Umsatz, Reisekosten, Überschuss, Dauer, Umsatz pro Stunde, Leerstrecke, Risikopenalty und den finalen Score. `MAX_REVENUE` sortiert primär nach Umsatz und verwendet Überschuss, Umsatz/Stunde und Risiko als Tie-Breaker. Die anderen Modi verwenden eine direkt lesbare Formel; die BALANCED-Gewichte liegen zentral in `DEFAULT_CONFIG`.
 
+Die Rohwerte bleiben nachvollziehbar: Geld wird intern in Minor Units geführt, `revenuePerHour` ist Euro pro Stunde. Der Modus `MAX_REVENUE_PER_HOUR` verwendet dafür ausschließlich eine dokumentierte Skalierung im finalen Vergleichsscore; die angezeigte Kennzahl bleibt in Euro pro Stunde.
+
+Der aktuelle PoC berechnet `estimatedOtherCosts` und `softConstraintPenalty` noch nicht. Beide Felder bleiben deshalb explizit null, statt nicht vorhandene Kosten oder Soft-Regeln zu erfinden.
+
+`excludeNegativeContribution` ist ein Filter für die fertige Mission, nicht für jeden einzelnen Übergang. Dadurch darf eine kurzfristig negative Positionierungs- oder Transferstrecke im Lookahead liegen, wenn die gesamte Mission einen positiven Überschuss erzielt. Eine alleinstehende Mission mit Umsatz kleiner oder gleich den Reisekosten wird weiterhin verworfen.
+
+## Fixture-Routing
+
+Transitverbindungen mit festen Abfahrts- oder Ankunftszeiten werden nur verwendet, wenn ihre Abfahrt noch erreichbar ist. Eine verpasste Verbindung wird nicht künstlich auf die angefragte Abfahrtszeit verschoben. Verbindungen ohne feste Zeiten bleiben deterministische Fixture-Verbindungen und starten zum angefragten Zeitpunkt.
+
 ## Local Search
 
 Die besten Beam-Kandidaten werden begrenzt mit Remove, Replace und Swap erneut abgespielt. Jede Variante durchläuft dieselben Feasibility-Regeln wie die Beam Search. Dadurch kann eine gute Reihenfolge lokal verbessert werden, ohne eine zweite, abweichende Regelimplementierung zu pflegen.
 
 ## Replanning
 
-`replan` übernimmt alle Legs, deren Ankunft vor `currentTime` liegt, unverändert. Die Restoptimierung startet am letzten bekannten Zielort mit dem aktualisierten WorldState. Liegt `currentTime` innerhalb eines Legs, wird das Replanning sicher blockiert, weil der exakte Zwischenstand nicht aus einer abgeschlossenen Mission ableitbar ist. Zukünftige bestätigte Bookings des betroffenen Fahrers bleiben Pflicht; nicht mehr erreichbare oder nicht mehr vorhandene Bookings werden als gefährdet erklärt. Der zurückgegebene Score wird über Vergangenheit und Zukunft aggregiert.
+`replan` übernimmt alle Legs, deren Ankunft vor `currentTime` liegt, unverändert. Die Restoptimierung startet am letzten bekannten Zielort mit dem aktualisierten WorldState und übernimmt den Transportmodus des letzten abgeschlossenen Legs, einschließlich Taxi, Rideshare und Eigenfahrzeug. Liegt `currentTime` innerhalb eines Legs, wird das Replanning sicher blockiert, weil der exakte Zwischenstand nicht aus einer abgeschlossenen Mission ableitbar ist. Zukünftige bestätigte Bookings des betroffenen Fahrers bleiben Pflicht; nicht mehr erreichbare, nicht mehr vorhandene oder bereits verfallene Pickup-Book­ings werden früh als gefährdet erklärt. Der zurückgegebene Score wird über Vergangenheit und Zukunft aggregiert.
 
 ## Warum V1 kein MILP/CP-SAT ist
 

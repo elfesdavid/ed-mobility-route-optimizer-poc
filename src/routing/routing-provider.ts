@@ -55,7 +55,12 @@ export class FixtureRoutingProvider implements RoutingProvider {
       if (request.transportMode === "OWN_VEHICLE" || request.transportMode === "CUSTOMER_VEHICLE") return false;
       return connection.mode === "PUBLIC_TRANSPORT";
     });
-    if (matching.length > 0) return matching.map((connection) => this.fromConnection(connection, request.departureTime));
+    if (matching.length > 0) {
+      return matching.flatMap((connection) => {
+        const route = this.fromConnection(connection, request.departureTime);
+        return route ? [route] : [];
+      });
+    }
 
     const distanceKm = haversineKm(request.origin, request.destination);
     const durationMinutes = request.transportMode === "WALKING" ? Math.ceil(distanceKm / 5 * 60) : Math.ceil(distanceKm / 85 * 60) + 15;
@@ -63,8 +68,11 @@ export class FixtureRoutingProvider implements RoutingProvider {
     return [{ mode: request.transportMode, departureTime: request.departureTime, arrivalTime: isoAt(request.departureTime, durationMinutes), durationMinutes, cost: eur(costMinor), distanceKm: Math.round(distanceKm * 10) / 10, confidence: "MEDIUM" }];
   }
 
-  private fromConnection(connection: TransitConnection, departureTime: string): RouteOption {
-    const departure = connection.departureTime && parseTime(connection.departureTime) >= parseTime(departureTime) ? connection.departureTime : departureTime;
-    return { mode: connection.mode, departureTime: departure, arrivalTime: isoAt(departure, connection.durationMinutes), durationMinutes: connection.durationMinutes, cost: connection.cost, distanceKm: connection.distanceKm, confidence: connection.confidence, connectionId: connection.id };
+  private fromConnection(connection: TransitConnection, departureTime: string): RouteOption | undefined {
+    const departure = connection.departureTime ?? departureTime;
+    if (parseTime(departure) < parseTime(departureTime)) return undefined;
+    const arrival = connection.arrivalTime ?? isoAt(departure, connection.durationMinutes);
+    if (parseTime(arrival) < parseTime(departure)) return undefined;
+    return { mode: connection.mode, departureTime: departure, arrivalTime: arrival, durationMinutes: Math.max(0, Math.round((parseTime(arrival) - parseTime(departure)) / 60_000)), cost: connection.cost, distanceKm: connection.distanceKm, confidence: connection.confidence, connectionId: connection.id };
   }
 }
