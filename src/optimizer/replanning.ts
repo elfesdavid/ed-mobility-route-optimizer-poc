@@ -20,12 +20,7 @@ function locationAtCurrentTime(mission: Mission, currentTime: string): Mission["
 }
 
 function transportModeFromLeg(leg: Mission["legs"][number] | undefined): WorldState["driver"]["currentTransportMode"] {
-  if (!leg) return "WALKING";
-  if (leg.type === "TRAIN" || leg.type === "BUS" || leg.type === "FLIGHT") return "PUBLIC_TRANSPORT";
-  if (leg.type === "TAXI") return "TAXI";
-  if (leg.type === "RIDESHARE") return "RIDESHARE";
-  if (leg.type === "DRIVE") return "OWN_VEHICLE";
-  return "WALKING";
+  return leg?.transportMode ?? "WALKING";
 }
 
 export function replan(activeMission: Mission, updatedWorld: WorldState, currentTime: string, preferences: MissionPreferences, optimizer = new RouteOptimizer()): ReplanResult {
@@ -37,6 +32,11 @@ export function replan(activeMission: Mission, updatedWorld: WorldState, current
   const preservedLegs = activeMission.legs.filter((leg) => parseTime(leg.arrivalTime) <= parseTime(currentTime));
   const currentLocation = locationAtCurrentTime(activeMission, currentTime);
   const completedOpportunityIds = new Set(preservedLegs.flatMap((leg) => leg.opportunityId ? [leg.opportunityId] : []));
+  const lastPreservedLeg = preservedLegs.at(-1);
+  const currentTransportMode = transportModeFromLeg(lastPreservedLeg);
+  const currentVehicleId = currentTransportMode === "OWN_VEHICLE"
+    ? [...preservedLegs].reverse().find((leg) => leg.vehicleId)?.vehicleId
+    : undefined;
   const futureOpportunities = new Set(updatedWorld.opportunities.map((opportunity) => opportunity.id));
   const warnings: ExplanationItem[] = [];
   const warnedBookingIds = new Set<string>();
@@ -55,7 +55,8 @@ export function replan(activeMission: Mission, updatedWorld: WorldState, current
     ...updatedWorld,
     opportunities: updatedWorld.opportunities.filter((opportunity) => !completedOpportunityIds.has(opportunity.id)),
     confirmedBookings: updatedWorld.confirmedBookings.filter((booking) => !completedOpportunityIds.has(booking.opportunityId)),
-    driver: { ...updatedWorld.driver, currentLocation, currentTransportMode: transportModeFromLeg(preservedLegs.at(-1)), currentVehicleId: preservedLegs.at(-1)?.type === "DRIVE" ? preservedLegs.at(-1)?.vehicleId : undefined, availableFrom: currentTime },
+    vehicles: updatedWorld.vehicles.map((vehicle) => vehicle.id === currentVehicleId ? { ...vehicle, currentLocation } : vehicle),
+    driver: { ...updatedWorld.driver, currentLocation, currentTransportMode, currentVehicleId, availableFrom: currentTime },
   });
   const missions = optimizer.optimize(replanningWorld, preferences);
   for (const booking of updatedWorld.confirmedBookings.filter((item) => item.status === "CONFIRMED" && item.driverId === updatedWorld.driver.id)) {
