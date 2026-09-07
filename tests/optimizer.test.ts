@@ -183,6 +183,12 @@ describe("Route optimizer proof of concept", () => {
     expect(atArrival.preservedLegs).toHaveLength(1);
   });
 
+  it("AD – rejects cargo attached to a vehicle-transfer opportunity", () => {
+    const world = createBaseWorld();
+    world.opportunities = [opportunity("vehicle-with-cargo", "VEHICLE_TRANSFER", "Unzulässiges Zusatz-Cargo", "DUSSELDORF", "COLOGNE", 12000, "2026-09-07T06:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T07:00:00.000Z", "2026-09-07T14:00:00.000Z", 30, [cargo("Paket", "TINY", 1)])];
+    expect(optimizer.optimize(world, { optimizationMode: "MAX_REVENUE", riskProfile: "NORMAL" })).toHaveLength(0);
+  });
+
   it("P – records the selected feasible connection when a slower alternative exists", () => {
     const world = createBaseWorld();
     const firstConnection = world.transitConnections.find((connection) => connection.id === "dus-col");

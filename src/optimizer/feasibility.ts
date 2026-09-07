@@ -11,7 +11,7 @@ export interface Rejection {
 
 export function cargoFitsTransport(items: CargoItem[], transportMode: TransportMode, vehicle: Vehicle | undefined, opportunity: Opportunity): boolean {
   if (items.length === 0) return true;
-  if (opportunity.type === "VEHICLE_TRANSFER") return true;
+  if (opportunity.type === "VEHICLE_TRANSFER") return items.length === 0;
   const maximum = transportMode === "PUBLIC_TRANSPORT" || transportMode === "WALKING" ? 1 : vehicle?.cargoProfile ? sizeRank[vehicle.cargoProfile.sizeClass] : 0;
   if (transportMode === "CUSTOMER_VEHICLE" && opportunity.constraints.allowsExternalCargo !== true) return false;
   if (items.some((item) => !Number.isInteger(item.quantity) || item.quantity <= 0)) return false;
